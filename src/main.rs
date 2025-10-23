@@ -1,179 +1,196 @@
-use bevy::prelude::*;
-use bevy_rapier3d::prelude::*;
+use bevy::{
+    input::{InputSystem, mouse::MouseMotion},
+    prelude::*,
+};
+use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
+
+const MOUSE_SENSITIVITY: f32 = 0.3;
+const GROUND_TIMER: f32 = 0.5;
+const MOVEMENT_SPEED: f32 = 8.0;
+const JUMP_SPEED: f32 = 20.0;
+const GRAVITY: f32 = -9.81;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
-        .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
-        .add_plugins(RapierDebugRenderPlugin::default())
-        .init_resource::<DidFixedTimestepRunThisFrame>()
-        .add_systems(Startup, (setup_physics, spawn_player))
-        // At the beginning of each frame, clear the flag that indicates whether the fixed timestep has run this frame.
-        .add_systems(PreUpdate, clear_fixed_timestep_flag)
-        // At the beginning of each fixed timestep, set the flag that indicates whether the fixed timestep has run this frame.
-        .add_systems(FixedPreUpdate, set_fixed_time_step_flag)
-        .add_systems(FixedUpdate, move_player)
-        .add_systems(
-            RunFixedMainLoop,
-            (
-                accumulate_input.in_set(RunFixedMainLoopSystem::BeforeFixedMainLoop),
-                clear_input
-                    .run_if(did_fixed_timestep_run_this_frame)
-                    .in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
-            ),
-        )
+        .insert_resource(ClearColor(Color::srgb(
+            0xF9 as f32 / 255.0,
+            0xF9 as f32 / 255.0,
+            0xFF as f32 / 255.0,
+        )))
+        .init_resource::<MovementInput>()
+        .init_resource::<LookInput>()
+        .add_plugins((
+            DefaultPlugins,
+            RapierPhysicsPlugin::<NoUserData>::default(),
+            RapierDebugRenderPlugin::default(),
+        ))
+        .add_systems(Startup, (setup_player, setup_map))
+        .add_systems(PreUpdate, handle_input.after(InputSystem))
+        .add_systems(Update, player_look)
+        .add_systems(FixedUpdate, player_movement)
         .run();
 }
 
-/// A vector representing the player's input, accumulated over all frames that ran
-/// since the last time the physics simulation was advanced.
-#[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
-struct AccumulatedInput {
-    // The player's movement input (WASD).
-    movement: Vec2,
-    // Other input that could make sense would be e.g.
-    // boost: bool
-}
-
-/// A vector representing the player's velocity in the physics simulation.
-#[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
-struct Velocity(Vec3); // speed in units per second
-
-#[derive(Bundle)]
-struct PlayerInputBundle {
-    accumulated_input: AccumulatedInput,
-    velocity: Velocity,
-}
-
-impl Default for PlayerInputBundle {
-    fn default() -> Self {
-        Self {
-            accumulated_input: AccumulatedInput::default(),
-            velocity: Velocity::default(),
-        }
-    }
-}
-
-fn setup_physics(
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut commands: Commands,
-) {
-    // insert ground
-    commands.spawn((
-        Transform::from_translation(Vec3::ZERO),
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(50.0, 50.0).subdivisions(10))),
-        MeshMaterial3d(materials.add(Color::WHITE)),
-        RigidBody::Fixed,
-        Collider::cuboid(15.0, 0.1, 15.0),
-    ));
-
-    // insert random ball
-    commands.spawn((
-        Transform::from_xyz(1.0, 1.0, 0.0),
-        Mesh3d(meshes.add(Sphere::new(0.5))),
-        MeshMaterial3d(materials.add(Color::srgb_u8(50, 50, 255))),
-        RigidBody::Dynamic,
-        Collider::ball(0.5),
-    ));
-}
-
-fn spawn_player(
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut commands: Commands,
-) {
-    // insert player
+pub fn setup_player(mut commands: Commands) {
     commands
         .spawn((
-            Name::new("Player"),
-            Transform::from_xyz(0.0, 0.5, 0.0),
-            Mesh3d(meshes.add(Capsule3d::new(0.5, 1.0))),
-            MeshMaterial3d(materials.add(Color::srgb_u8(124, 144, 255))),
-            RigidBody::KinematicPositionBased,
-            Collider::capsule_y(0.5, 0.5),
-            PlayerInputBundle {
-                ..PlayerInputBundle::default()
-            },
+            Transform::from_xyz(0.0, 5.0, 0.0),
+            Visibility::default(),
+            Collider::round_cylinder(0.9, 0.3, 0.2),
             KinematicCharacterController {
-                ..KinematicCharacterController::default()
+                custom_mass: Some(5.0),
+                up: Vec3::Y,
+                offset: CharacterLength::Absolute(0.01),
+                slide: true,
+                autostep: Some(CharacterAutostep {
+                    max_height: CharacterLength::Relative(0.3),
+                    min_width: CharacterLength::Relative(0.5),
+                    include_dynamic_bodies: false,
+                }),
+                // Don’t allow climbing slopes larger than 45 degrees.
+                max_slope_climb_angle: 45.0_f32.to_radians(),
+                // Automatically slide down on slopes smaller than 30 degrees.
+                min_slope_slide_angle: 30.0_f32.to_radians(),
+                apply_impulse_to_dynamic_bodies: true,
+                snap_to_ground: None,
+                ..default()
             },
         ))
-        .with_children(|parent| {
-            // spawn camera following player
-            parent.spawn((
-                Camera3d::default(),
-                Transform::from_xyz(-3.0, 3.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
-            ));
+        .with_children(|b| {
+            // FPS Camera
+            b.spawn((Camera3d::default(), Transform::from_xyz(0.0, 0.2, -0.1)));
         });
 }
 
-fn accumulate_input(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    player: Single<(&mut AccumulatedInput, &mut Velocity)>,
+fn setup_map(mut commands: Commands) {
+    /*
+     * Ground
+     */
+    let ground_size = 50.0;
+    let ground_height = 0.1;
+
+    commands.spawn((
+        Transform::from_xyz(0.0, -ground_height, 0.0),
+        Collider::cuboid(ground_size, ground_height, ground_size),
+    ));
+    /*
+     * Stairs
+     */
+    let stair_len = 30;
+    let stair_step = 0.2;
+    for i in 1..=stair_len {
+        let step = i as f32;
+        let collider = Collider::cuboid(1.0, step * stair_step, 1.0);
+        commands.spawn((
+            Transform::from_xyz(40.0, step * stair_step, step * 2.0 - 20.0),
+            collider.clone(),
+        ));
+        commands.spawn((
+            Transform::from_xyz(-40.0, step * stair_step, step * -2.0 + 20.0),
+            collider.clone(),
+        ));
+        commands.spawn((
+            Transform::from_xyz(step * 2.0 - 20.0, step * stair_step, 40.0),
+            collider.clone(),
+        ));
+        commands.spawn((
+            Transform::from_xyz(step * -2.0 + 20.0, step * stair_step, -40.0),
+            collider.clone(),
+        ));
+    }
+}
+
+/// Keyboard input vector
+#[derive(Default, Resource, Deref, DerefMut)]
+struct MovementInput(Vec3);
+
+/// Mouse input vector
+#[derive(Default, Resource, Deref, DerefMut)]
+struct LookInput(Vec2);
+
+fn handle_input(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut movement: ResMut<MovementInput>,
+    mut look: ResMut<LookInput>,
+    mut mouse_events: EventReader<MouseMotion>,
 ) {
-    const SPEED: f32 = 4.0;
-    let (mut input, mut velocity) = player.into_inner();
+    if keyboard.pressed(KeyCode::KeyW) {
+        movement.z -= 1.0;
+    }
+    if keyboard.pressed(KeyCode::KeyS) {
+        movement.z += 1.0
+    }
+    if keyboard.pressed(KeyCode::KeyA) {
+        movement.x -= 1.0;
+    }
+    if keyboard.pressed(KeyCode::KeyD) {
+        movement.x += 1.0
+    }
+    **movement = movement.normalize_or_zero();
+    if keyboard.pressed(KeyCode::ShiftLeft) {
+        **movement *= 2.0;
+    }
+    if keyboard.pressed(KeyCode::Space) {
+        movement.y = 1.0;
+    }
 
-    // reset the input to zero before reading the new input.
-    input.movement = Vec2::ZERO;
-    if keyboard_input.pressed(KeyCode::KeyW) {
-        input.movement.y += 1.0;
+    for event in mouse_events.read() {
+        look.x -= event.delta.x * MOUSE_SENSITIVITY;
+        look.y -= event.delta.y * MOUSE_SENSITIVITY;
+        look.y = look.y.clamp(-89.9, 89.9); // Limit pitch
     }
-    if keyboard_input.pressed(KeyCode::KeyS) {
-        input.movement.y -= 1.0;
-    }
-    if keyboard_input.pressed(KeyCode::KeyA) {
-        input.movement.x -= 1.0;
-    }
-    if keyboard_input.pressed(KeyCode::KeyD) {
-        input.movement.x += 1.0;
-    }
+}
 
-    // remap 2D input to bevy world coordinates
-    // -Z is forward in Bevy, so that maps to W
-    let input_3d = Vec3 {
-        x: input.movement.x,  // left - right movement (strafing)
-        y: 0.0,               // no upwards or downwards movement
-        z: -input.movement.y, // forward movement along -Z
+fn player_movement(
+    time: Res<Time>,
+    mut input: ResMut<MovementInput>,
+    mut player: Query<(
+        &mut Transform,
+        &mut KinematicCharacterController,
+        Option<&KinematicCharacterControllerOutput>,
+    )>,
+    mut vertical_movement: Local<f32>,
+    mut grounded_timer: Local<f32>,
+) {
+    let Ok((transform, mut controller, output)) = player.single_mut() else {
+        return;
     };
-
-    velocity.0 = input_3d.clamp_length_max(1.0) * SPEED;
+    let delta_time = time.delta_secs();
+    // Retrieve input
+    let mut movement = Vec3::new(input.x, 0.0, input.z) * MOVEMENT_SPEED;
+    let jump_speed = input.y * JUMP_SPEED;
+    // Clear input
+    **input = Vec3::ZERO;
+    // Check physics ground check
+    if output.map(|o| o.grounded).unwrap_or(false) {
+        *grounded_timer = GROUND_TIMER;
+        *vertical_movement = 0.0;
+    }
+    // If we are grounded we can jump
+    if *grounded_timer > 0.0 {
+        *grounded_timer -= delta_time;
+        // If we jump we clear the grounded tolerance
+        if jump_speed > 0.0 {
+            *vertical_movement = jump_speed;
+            *grounded_timer = 0.0;
+        }
+    }
+    movement.y = *vertical_movement;
+    *vertical_movement += GRAVITY * delta_time * controller.custom_mass.unwrap_or(1.0);
+    controller.translation = Some(transform.rotation * (movement * delta_time));
 }
 
-/// A simple resource that tells us whether the fixed timestep ran this frame.
-#[derive(Resource, Debug, Deref, DerefMut, Default)]
-pub struct DidFixedTimestepRunThisFrame(bool);
-
-/// Reset the flag at the start of every frame.
-fn clear_fixed_timestep_flag(
-    mut did_fixed_timestep_run_this_frame: ResMut<DidFixedTimestepRunThisFrame>,
+fn player_look(
+    mut player: Query<&mut Transform, (With<KinematicCharacterController>, Without<Camera>)>,
+    mut camera: Query<&mut Transform, With<Camera>>,
+    input: Res<LookInput>,
 ) {
-    did_fixed_timestep_run_this_frame.0 = false;
-}
-
-/// Set the flag during each fixed timestep.
-fn set_fixed_time_step_flag(
-    mut did_fixed_timestep_run_this_frame: ResMut<DidFixedTimestepRunThisFrame>,
-) {
-    did_fixed_timestep_run_this_frame.0 = true;
-}
-
-fn did_fixed_timestep_run_this_frame(
-    did_fixed_timestep_run_this_frame: Res<DidFixedTimestepRunThisFrame>,
-) -> bool {
-    did_fixed_timestep_run_this_frame.0
-}
-
-// Clear the input after it was processed in the fixed timestep.
-fn clear_input(mut input: Single<&mut AccumulatedInput>) {
-    **input = AccumulatedInput::default();
-}
-
-fn move_player(
-    fixed_time: Res<Time<Fixed>>,
-    velocity: Single<&Velocity>,
-    mut controller: Single<&mut KinematicCharacterController>,
-) {
-    controller.translation = Some(velocity.0 * fixed_time.delta_secs());
+    let Ok(mut transform) = player.single_mut() else {
+        return;
+    };
+    transform.rotation = Quat::from_axis_angle(Vec3::Y, input.x.to_radians());
+    let Ok(mut transform) = camera.single_mut() else {
+        return;
+    };
+    transform.rotation = Quat::from_axis_angle(Vec3::X, input.y.to_radians());
 }
