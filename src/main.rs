@@ -1,10 +1,12 @@
 use crate::loading_system::*;
 use crate::player_movement::*;
+use crate::ui::*;
 use bevy::{input::InputSystem, prelude::*};
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
 
 pub mod loading_system;
 pub mod player_movement;
+pub mod ui;
 
 // States of the app in general. Could become more complicated in the future
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
@@ -66,19 +68,23 @@ fn main() {
             ),
         )
         .add_systems(OnEnter(MyAppState::InGame), (spawn_level_map, setup_player))
-        .add_systems(Startup, start_loading_assets)
+        .add_systems(Startup, (start_loading_assets, setup_ui))
         .add_systems(
             PreUpdate,
-            ((handle_input.after(InputSystem)).in_set(GameplaySet),),
+            ((handle_input, player_movement)
+                .chain()
+                .after(InputSystem)
+                .in_set(GameplaySet),),
         )
         .add_systems(
             Update,
             (
                 (player_look).in_set(GameplaySet),
                 (checks_assets_loaded).in_set(LoadingSet),
+                update_ui,
             ),
         )
-        .add_systems(FixedUpdate, ((player_movement).in_set(GameplaySet),))
+        // .add_systems(FixedUpdate, ((player_movement).in_set(GameplaySet),))
         .run();
 }
 
@@ -103,6 +109,7 @@ pub fn setup_player(mut commands: Commands) {
     commands
         .spawn((
             Player::default(),
+            Health { hp: 90 },
             Transform::from_xyz(0.0, 5.0, 0.0),
             Visibility::default(),
             Collider::round_cylinder(0.9, 0.3, 0.2),

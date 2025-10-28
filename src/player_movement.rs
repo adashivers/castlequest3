@@ -92,7 +92,7 @@ pub fn player_movement(
 }
 
 pub fn player_look(
-    mut player: Query<&mut Transform, (With<Player>, With<KinematicCharacterController>)>,
+    mut player: Query<&mut Transform, (With<Player>, Without<Camera>)>,
     mut camera: Query<&mut Transform, With<Camera>>,
     input: Res<LookInput>,
 ) {
