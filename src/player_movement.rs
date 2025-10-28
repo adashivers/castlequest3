@@ -1,3 +1,4 @@
+use super::Player;
 use bevy::{input::mouse::MouseMotion, prelude::*};
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
 
@@ -51,11 +52,14 @@ pub fn handle_input(
 pub fn player_movement(
     time: Res<Time>,
     mut input: ResMut<MovementInput>,
-    mut player: Query<(
-        &mut Transform,
-        &mut KinematicCharacterController,
-        Option<&KinematicCharacterControllerOutput>,
-    )>,
+    mut player: Query<
+        (
+            &mut Transform,
+            &mut KinematicCharacterController,
+            Option<&KinematicCharacterControllerOutput>,
+        ),
+        With<Player>,
+    >,
     mut vertical_movement: Local<f32>,
     mut grounded_timer: Local<f32>,
 ) {
@@ -88,7 +92,7 @@ pub fn player_movement(
 }
 
 pub fn player_look(
-    mut player: Query<&mut Transform, (With<KinematicCharacterController>, Without<Camera>)>,
+    mut player: Query<&mut Transform, (With<Player>, With<KinematicCharacterController>)>,
     mut camera: Query<&mut Transform, With<Camera>>,
     input: Res<LookInput>,
 ) {

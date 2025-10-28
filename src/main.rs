@@ -82,9 +82,27 @@ fn main() {
         .run();
 }
 
+#[derive(Component)]
+pub struct Health {
+    hp: u32,
+}
+
+impl Default for Health {
+    fn default() -> Self {
+        Health { hp: 100 }
+    }
+}
+
+#[derive(Component, Default)]
+pub struct Player;
+
+#[derive(Component, Default)]
+pub struct Enemy;
+
 pub fn setup_player(mut commands: Commands) {
     commands
         .spawn((
+            Player::default(),
             Transform::from_xyz(0.0, 5.0, 0.0),
             Visibility::default(),
             Collider::round_cylinder(0.9, 0.3, 0.2),
