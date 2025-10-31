@@ -1,8 +1,9 @@
 use crate::loading_system::*;
 use crate::player_movement::*;
 use crate::ui::*;
-use bevy::{input::InputSystem, prelude::*};
+use bevy::{asset::weak_handle, color::palettes, input::InputSystem, prelude::*};
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
+use vleue_navigator::{NavMesh, VleueNavigatorPlugin};
 
 pub mod loading_system;
 pub mod player_movement;
@@ -44,6 +45,7 @@ fn main() {
             DefaultPlugins,
             RapierPhysicsPlugin::<NoUserData>::default(),
             RapierDebugRenderPlugin::default(),
+            VleueNavigatorPlugin,
         ))
         .insert_state(MyAppState::Loading)
         .configure_sets(
@@ -139,7 +141,7 @@ pub fn setup_player(mut commands: Commands) {
 }
 
 // todo: change this to get in a scene map
-fn spawn_level_map(
+pub fn spawn_level_map(
     mut commands: Commands,
     meshes: Res<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -156,14 +158,41 @@ fn spawn_level_map(
     );
     match lvl_collider {
         Some(collider) => {
-            commands
-                .spawn(Mesh3d(lvl_mesh_handle.clone()))
-                .insert(MeshMaterial3d(materials.add(Color::WHITE)))
-                .insert(Name::new("Level Mesh"))
-                .insert(collider);
+            commands.spawn((
+                Mesh3d(lvl_mesh_handle.clone()),
+                MeshMaterial3d(materials.add(Color::WHITE)),
+                Transform::from_xyz(0.0, 0.0, 0.0),
+                Name::new("Level Mesh"),
+                Visibility::Visible, // ALERT: change this back to visible after finished with testing navmesh
+                collider,
+            ));
         }
         None => {
             panic!("Could not generate collider for level mesh");
         }
     }
+}
+
+const HANDLE_NAVMESH: Handle<NavMesh> = weak_handle!("2bee303e-d39f-479f-8fd3-20babb822ddb");
+
+pub fn setup_navmesh(
+    mut commands: Commands,
+    lvl_handles: ResMut<LevelHandles>,
+    meshes: Res<Assets<Mesh>>,
+    mut navmeshes: ResMut<Assets<NavMesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    // navmesh must be loaded when this is called
+    let mesh = meshes.get(lvl_handles.0[1].id()).expect("Couldn't get navmesh for the level");
+    let navmesh = NavMesh::from_bevy_mesh(mesh).unwrap();
+
+    let mut material: StandardMaterial = Color::Srgba(palettes::css::ANTIQUE_WHITE).into();
+    material.unlit = true;
+
+    commands.spawn((
+        Transform::from_xyz(0.0, 0.0, 0.0),
+        MeshMaterial3d(materials.add(material)),
+        Name::new("Level NavMesh"),
+    ));
+    navmeshes.insert(&HANDLE_NAVMESH, navmesh);
 }
