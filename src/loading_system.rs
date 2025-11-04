@@ -6,7 +6,7 @@ use bevy::{asset::LoadState, asset::UntypedAssetId, prelude::*};
 // This should be a Single resource
 // Should always be empty if app state is not Loading
 #[derive(Default, Resource)]
-pub struct AssetsLoading(Vec<UntypedHandle>);
+pub struct AssetsLoading(pub(crate) Vec<UntypedHandle>);
 
 // Start loading assets for the level.
 pub fn start_loading_assets(
@@ -16,14 +16,10 @@ pub fn start_loading_assets(
 ) {
     debug!("Loading assets...");
     let level_mesh: Handle<Mesh> = asset_server.load("models/dungeon.glb#Mesh0/Primitive0");
-    let level_navmesh: Handle<Mesh> =
-        asset_server.load("models/dungeon_navmesh.glb#Mesh0/Primitive0");
 
     // todo: streamline this
     loading.0.push(level_mesh.clone().untyped());
-    loading.0.push(level_navmesh.clone().untyped());
     lvl_handles.0.push(level_mesh);
-    lvl_handles.0.push(level_navmesh);
 }
 
 // get a cumulative load state for a list of handles (only success if all of them are loaded)

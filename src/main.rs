@@ -1,13 +1,15 @@
 use crate::loading_system::*;
 use crate::player_movement::*;
 use crate::ui::*;
-use bevy::{asset::weak_handle, color::palettes, input::InputSystem, prelude::*};
+use crate::actor_navigation::*;
+use bevy::{input::InputSystem, prelude::*};
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
-use vleue_navigator::{NavMesh, VleueNavigatorPlugin};
+use vleue_navigator::VleueNavigatorPlugin;
 
 pub mod loading_system;
 pub mod player_movement;
 pub mod ui;
+pub mod actor_navigation;
 
 // States of the app in general. Could become more complicated in the future
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
@@ -69,8 +71,8 @@ fn main() {
                 LoadingSet.run_if(in_state(MyAppState::Loading)),
             ),
         )
-        .add_systems(OnEnter(MyAppState::InGame), (spawn_level_map, setup_player))
-        .add_systems(Startup, (start_loading_assets, setup_ui))
+        .add_systems(Startup, (start_loading_assets, start_loading_navmesh, setup_ui))
+        .add_systems(OnEnter(MyAppState::InGame), (spawn_level_map, spawn_navmesh, setup_player))
         .add_systems(
             PreUpdate,
             ((handle_input, player_movement)
@@ -107,7 +109,11 @@ pub struct Player;
 #[derive(Component, Default)]
 pub struct Enemy;
 
+
+
 pub fn setup_player(mut commands: Commands) {
+    const FOV: f32 = f32::to_radians(60.0);
+
     commands
         .spawn((
             Player::default(),
@@ -136,7 +142,17 @@ pub fn setup_player(mut commands: Commands) {
         ))
         .with_children(|b| {
             // FPS Camera
-            b.spawn((Camera3d::default(), Transform::from_xyz(0.0, 0.2, -0.1)));
+            b.spawn((
+                Camera3d::default(), 
+                Transform::from_xyz(0.0, 0.2, -0.1), 
+                Projection::Perspective(
+                    PerspectiveProjection 
+                    { 
+                        fov: FOV, 
+                        ..Default::default()
+                    }
+                )
+            ));
         });
 }
 
@@ -167,32 +183,8 @@ pub fn spawn_level_map(
                 collider,
             ));
         }
-        None => {
+        _ => {
             panic!("Could not generate collider for level mesh");
         }
     }
-}
-
-const HANDLE_NAVMESH: Handle<NavMesh> = weak_handle!("2bee303e-d39f-479f-8fd3-20babb822ddb");
-
-pub fn setup_navmesh(
-    mut commands: Commands,
-    lvl_handles: ResMut<LevelHandles>,
-    meshes: Res<Assets<Mesh>>,
-    mut navmeshes: ResMut<Assets<NavMesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    // navmesh must be loaded when this is called
-    let mesh = meshes.get(lvl_handles.0[1].id()).expect("Couldn't get navmesh for the level");
-    let navmesh = NavMesh::from_bevy_mesh(mesh).unwrap();
-
-    let mut material: StandardMaterial = Color::Srgba(palettes::css::ANTIQUE_WHITE).into();
-    material.unlit = true;
-
-    commands.spawn((
-        Transform::from_xyz(0.0, 0.0, 0.0),
-        MeshMaterial3d(materials.add(material)),
-        Name::new("Level NavMesh"),
-    ));
-    navmeshes.insert(&HANDLE_NAVMESH, navmesh);
 }
