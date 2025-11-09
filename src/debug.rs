@@ -8,8 +8,8 @@ use crate::ui::BrosOskonFont;
 /// Debug input vector. Debug systems should only run if this resource exists.
 #[derive(Resource)]
 pub struct DebugFlags {
-    show_colliders: bool,
-    show_navmesh: bool,
+    pub show_colliders: bool,
+    pub show_navmesh: bool,
 }
 
 impl Default for DebugFlags {
@@ -25,11 +25,14 @@ impl Default for DebugFlags {
 pub struct DebugCollidersVisibleText;
 #[derive(Component, Default)]
 pub struct DebugNavmeshVisibleText;
+#[derive(Component, Default)]
+pub struct DebugNavmeshDisplay;
 
 pub fn handle_debug_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     debug_flags: Option<ResMut<DebugFlags>>,
     debug_render_context: Option<ResMut<DebugRenderContext>>,
+    mut navmesh_display_query: Query<&mut Visibility, With<DebugNavmeshDisplay>>
 ) {
     // set debug input stuff
     match debug_flags {
@@ -43,7 +46,9 @@ pub fn handle_debug_input(
             if keyboard.just_pressed(KeyCode::KeyN) {
                 let next = !flags.show_navmesh;
                 debug!("show_navmesh set to {}", next);
-                // TODO: setup navmesh debug stuff here
+                for mut vis in navmesh_display_query.iter_mut() {
+                    vis.toggle_visible_hidden();
+                }
                 flags.show_navmesh = next;
             }
         },

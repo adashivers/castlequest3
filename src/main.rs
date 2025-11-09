@@ -5,12 +5,10 @@ use crate::ui::*;
 use crate::actor_navigation::*;
 use crate::debug::*;
 
-use bevy::{input::InputSystem, color::palettes::tailwind::VIOLET_700, prelude::*, log::LogPlugin};
+use bevy::{input::InputSystem, prelude::*, log::LogPlugin};
 
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
-use vleue_navigator::NavMeshesDebug;
 use vleue_navigator::VleueNavigatorPlugin;
-use vleue_navigator::display_navmesh;
 
 pub mod loading_system;
 pub mod player_movement;
@@ -54,7 +52,6 @@ fn main() {
         .init_resource::<LevelHandles>()
         .init_resource::<NavMeshPrimitives>()
         .init_resource::<DebugFlags>() // remove this to disable debug stuff
-        .insert_resource(NavMeshesDebug(VIOLET_700.into()))
         .add_plugins((
             DefaultPlugins.set(LogPlugin {
                 filter: "moving_around=debug,wgpu_core=warn,wgpu_hal=warn".into(),
@@ -110,7 +107,6 @@ fn main() {
                 (checks_assets_loaded).in_set(LoadingSet),
                 update_ui,
                 update_debug_ui.run_if(resource_exists::<DebugFlags>),
-                display_navmesh,
             ),
         )
         // .add_systems(FixedUpdate, ((player_movement).in_set(GameplaySet),))
