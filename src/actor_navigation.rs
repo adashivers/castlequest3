@@ -1,8 +1,18 @@
 use crate::loading_system::AssetsLoading;
+use super::Player;
 use bevy::{asset::weak_handle, color::palettes, prelude::*};
+use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
+use bevy_behave::prelude::*;
 use vleue_navigator::NavMesh;
 
 const HANDLE_NAVMESH: Handle<NavMesh> = weak_handle!("2bee303e-d39f-479f-8fd3-20babb822ddb");
+const ENEMY_SPEED: f32 = 100.;
+const ENEMY_VISION_RADIUS: f32 = 300.0;
+
+#[derive(Component, Default)]
+#[require(Transform)]
+#[require(VisionRadius(ENEMY_VISION_RADIUS))]
+pub struct Enemy;
 
 #[derive(Component, Clone)]
 struct NavMeshDisplay(Handle<NavMesh>);
@@ -48,6 +58,7 @@ pub fn spawn_navmesh(
     let mut material: StandardMaterial = Color::Srgba(palettes::css::ANTIQUE_WHITE).into();
     material.unlit = true;
 
+
     commands.spawn((
         Transform::from_xyz(0.0, 0.0, 0.0),
         MeshMaterial3d(materials.add(material)),
@@ -56,8 +67,58 @@ pub fn spawn_navmesh(
         NavMeshDisplay(HANDLE_NAVMESH),
     ));
     navmeshes.insert(&HANDLE_NAVMESH, navmesh);
+    
 
     // todo: might not fully clear here?
     // drops the nav mesh primitive used here to save memory
     nav_mesh_prim.0.clear();
+}
+
+#[derive(Component, Clone)]
+struct WaitUntilPlayerIsNear {
+    player: Entity,
+}
+
+#[derive(Component, Clone)]
+struct MoveTowardsPlayer {
+    player: Entity,
+    speed: f32,
+}
+
+#[derive(Component)]
+struct VisionRadius(f32);
+
+
+// --- !!! WIP !!! ---
+pub fn move_actors(
+    player: Single<Entity, With<Player>>,
+    mut agents: Query<
+        (
+            &mut Transform,
+            &mut KinematicCharacterController,
+            Option<&KinematicCharacterControllerOutput>,
+        ),
+        Without<Player>,
+    >,
+    navmesh: Res<CurrentNavMesh>,
+) {
+    let tree = tree! {
+        Behave::Forever => {
+            Behave::Sequence => {
+                 Behave::spawn_named("Wait until player is near",
+                    WaitUntilPlayerIsNear{player: *player}
+                ),
+            },
+            // found player near
+            Behave::Sequence => {
+                Behave::spawn_named("Move towards player while in range",
+                    MoveTowardsPlayer{player: *player, speed: ENEMY_SPEED}
+                ),
+            },
+        }
+    };
+
+    for (agent, controller, controller_output) in agents.iter() {
+
+    }
 }
