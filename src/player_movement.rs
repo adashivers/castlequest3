@@ -1,6 +1,7 @@
 
 
 use super::Player;
+use crate::actor_navigation::GRAVITY;
 use bevy::{input::mouse::MouseMotion, prelude::*};
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*,};
 
@@ -8,7 +9,6 @@ const MOUSE_SENSITIVITY: f32 = 0.3;
 const GROUND_TIMER: f32 = 0.5;
 const MOVEMENT_SPEED: f32 = 8.0;
 const JUMP_SPEED: f32 = 20.0;
-const GRAVITY: f32 = -9.81;
 
 /// Keyboard input vector
 #[derive(Default, Resource, Deref, DerefMut)]

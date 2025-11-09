@@ -92,10 +92,10 @@ fn main() {
                 setup_debug_ui.run_if(resource_exists::<DebugFlags>)
             ).chain(),
         ))
-        .add_systems(OnEnter(MyAppState::InGame), (spawn_level_map, spawn_navmesh, setup_player))
+        .add_systems(OnEnter(MyAppState::InGame), (spawn_level_map, spawn_navmesh, setup_player, spawn_enemy))
         .add_systems(
             PreUpdate,
-            ((handle_input, handle_debug_input.run_if(resource_exists::<DebugFlags>), player_movement)
+            ((handle_input, handle_debug_input.run_if(resource_exists::<DebugFlags>), player_movement, update_enemy)
                 .chain()
                 .after(InputSystem)
                 .in_set(GameplaySet),),

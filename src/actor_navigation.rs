@@ -1,10 +1,9 @@
 use crate::{debug::{DebugFlags, DebugNavmeshDisplay}, loading_system::AssetsLoading};
-use super::Player;
-use bevy::{asset::weak_handle, color::palettes, prelude::*};
+use bevy::{color::palettes, math::VectorSpace, prelude::*};
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
-use bevy_behave::prelude::*;
-use vleue_navigator::{NavMesh, NavMeshDebug, prelude::ManagedNavMesh};
+use vleue_navigator::{NavMesh};
 
+pub const GRAVITY: f32 = -9.81;
 const ENEMY_SPEED: f32 = 100.;
 const ENEMY_VISION_RADIUS: f32 = 300.0;
 
@@ -74,4 +73,64 @@ pub fn spawn_navmesh(
     // todo: might not fully clear here?
     // drops the nav mesh primitive used here to save memory
     nav_mesh_prim.0.clear();
+}
+
+#[derive(Component)]
+pub struct Enemy;
+
+pub fn spawn_enemy(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let mut material: StandardMaterial = Color::Srgba(palettes::css::DARK_BLUE).into();
+    material.unlit = true;
+    commands.spawn((
+        Enemy,
+        Transform::from_xyz(0.0, 5.0, 0.0),
+        MeshMaterial3d(materials.add(material)),
+        Mesh3d(meshes.add(Capsule3d::default())),
+        Collider::round_cylinder(0.9, 0.3, 0.2),
+        KinematicCharacterController {
+            custom_mass: Some(5.0),
+            up: Vec3::Y,
+            offset: CharacterLength::Absolute(0.01),
+            slide: true,
+            autostep: Some(CharacterAutostep {
+                max_height: CharacterLength::Relative(0.3),
+                min_width: CharacterLength::Relative(0.5),
+                include_dynamic_bodies: false,
+            }),
+            // Don’t allow climbing slopes larger than 45 degrees.
+            max_slope_climb_angle: 45.0_f32.to_radians(),
+            // Automatically slide down on slopes smaller than 30 degrees.
+            min_slope_slide_angle: 30.0_f32.to_radians(),
+            apply_impulse_to_dynamic_bodies: true,
+            snap_to_ground: None,
+            ..default()
+        },
+
+    ));
+}
+
+pub fn update_enemy(
+    time: Res<Time>,
+    mut enemy_query: Query<
+        (
+            &mut Transform,
+            &mut KinematicCharacterController,
+            Option<&KinematicCharacterControllerOutput>,
+        ),
+        With<Enemy>,
+    >,
+) {
+    for (_, mut controller, _) in enemy_query.iter_mut() {
+        let mut next_translation: Vec3 = Vec3::ZERO;
+
+        // calculate translation
+        // TODO: add pathfinding
+        next_translation.y += GRAVITY * time.delta_secs() * controller.custom_mass.unwrap_or(1.0);
+
+        controller.translation = Some(next_translation);
+    }
 }
