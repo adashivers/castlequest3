@@ -8,10 +8,6 @@ use vleue_navigator::{NavMesh, NavMeshDebug, prelude::ManagedNavMesh};
 const ENEMY_SPEED: f32 = 100.;
 const ENEMY_VISION_RADIUS: f32 = 300.0;
 
-#[derive(Component, Default)]
-#[require(Transform)]
-pub struct Enemy;
-
 #[derive(Resource)]
 pub struct CurrentNavMesh(Handle<NavMesh>);
 
@@ -40,7 +36,7 @@ pub fn start_loading_navmesh
 pub fn spawn_navmesh(
     mut commands: Commands,
     mut nav_mesh_prim: ResMut<NavMeshPrimitives>,
-    meshes: Res<Assets<Mesh>>,
+    mut meshes: ResMut<Assets<Mesh>>,
     mut navmeshes: ResMut<Assets<NavMesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     debug_flags: Option<ResMut<DebugFlags>>,
@@ -53,9 +49,6 @@ pub fn spawn_navmesh(
     let mut material: StandardMaterial = Color::Srgba(palettes::css::DARK_BLUE).into();
     material.unlit = true;
 
-    let navmesh_handle = navmeshes.add(navmesh);
-    commands.insert_resource(CurrentNavMesh(navmesh_handle));
-
     // set up navmesh display for debugging
     match debug_flags {
         Some(flags) => {
@@ -67,12 +60,15 @@ pub fn spawn_navmesh(
                     true => Visibility::Visible,
                     _ => Visibility::Hidden
                 },
-                Mesh3d(nav_mesh_prim.0[0].clone()),
+                Mesh3d(meshes.add(navmesh.to_wireframe_mesh())),
                 DebugNavmeshDisplay,
             ));
         },
         _ => {}
     }
+
+    let navmesh_handle = navmeshes.add(navmesh);
+    commands.insert_resource(CurrentNavMesh(navmesh_handle));
     
 
     // todo: might not fully clear here?
