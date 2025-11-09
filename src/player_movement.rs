@@ -1,6 +1,8 @@
+
+
 use super::Player;
 use bevy::{input::mouse::MouseMotion, prelude::*};
-use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
+use bevy_rapier3d::{control::KinematicCharacterController, prelude::*,};
 
 const MOUSE_SENSITIVITY: f32 = 0.3;
 const GROUND_TIMER: f32 = 0.5;

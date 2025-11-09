@@ -1,15 +1,22 @@
+use std::fmt::Debug;
 use crate::loading_system::*;
 use crate::player_movement::*;
 use crate::ui::*;
 use crate::actor_navigation::*;
-use bevy::{input::InputSystem, prelude::*};
+use crate::debug::*;
+
+use bevy::{input::InputSystem, color::palettes::tailwind::VIOLET_700, prelude::*, log::LogPlugin};
+
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
+use vleue_navigator::NavMeshesDebug;
 use vleue_navigator::VleueNavigatorPlugin;
+use vleue_navigator::display_navmesh;
 
 pub mod loading_system;
 pub mod player_movement;
 pub mod ui;
 pub mod actor_navigation;
+pub mod debug;
 
 // States of the app in general. Could become more complicated in the future
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
@@ -32,6 +39,8 @@ pub struct GameplaySet;
 #[derive(Default, Resource)]
 pub struct LevelHandles(Vec<Handle<Mesh>>);
 
+
+
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::srgb(
@@ -43,8 +52,15 @@ fn main() {
         .init_resource::<LookInput>()
         .init_resource::<AssetsLoading>()
         .init_resource::<LevelHandles>()
+        .init_resource::<NavMeshPrimitives>()
+        .init_resource::<DebugFlags>() // remove this to disable debug stuff
+        .insert_resource(NavMeshesDebug(VIOLET_700.into()))
         .add_plugins((
-            DefaultPlugins,
+            DefaultPlugins.set(LogPlugin {
+                filter: "moving_around=debug,wgpu_core=warn,wgpu_hal=warn".into(),
+                level: bevy::log::Level::INFO,
+                custom_layer: |_| None,
+            }),
             RapierPhysicsPlugin::<NoUserData>::default(),
             RapierDebugRenderPlugin::default(),
             VleueNavigatorPlugin,
@@ -71,11 +87,18 @@ fn main() {
                 LoadingSet.run_if(in_state(MyAppState::Loading)),
             ),
         )
-        .add_systems(Startup, (start_loading_assets, start_loading_navmesh, setup_ui))
+        .add_systems(Startup, (
+            start_loading_assets, 
+            start_loading_navmesh, 
+            (
+                setup_ui, 
+                setup_debug_ui.run_if(resource_exists::<DebugFlags>)
+            ).chain(),
+        ))
         .add_systems(OnEnter(MyAppState::InGame), (spawn_level_map, spawn_navmesh, setup_player))
         .add_systems(
             PreUpdate,
-            ((handle_input, player_movement)
+            ((handle_input, handle_debug_input.run_if(resource_exists::<DebugFlags>), player_movement)
                 .chain()
                 .after(InputSystem)
                 .in_set(GameplaySet),),
@@ -86,6 +109,8 @@ fn main() {
                 (player_look).in_set(GameplaySet),
                 (checks_assets_loaded).in_set(LoadingSet),
                 update_ui,
+                update_debug_ui.run_if(resource_exists::<DebugFlags>),
+                display_navmesh,
             ),
         )
         // .add_systems(FixedUpdate, ((player_movement).in_set(GameplaySet),))
@@ -105,11 +130,6 @@ impl Default for Health {
 
 #[derive(Component, Default)]
 pub struct Player;
-
-#[derive(Component, Default)]
-pub struct Enemy;
-
-
 
 pub fn setup_player(mut commands: Commands) {
     const FOV: f32 = f32::to_radians(60.0);
