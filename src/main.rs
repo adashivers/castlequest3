@@ -9,6 +9,7 @@ use bevy::{input::InputSystem, prelude::*, log::LogPlugin};
 
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
 use bevy_landmass::{prelude::*, debug::Landmass3dDebugPlugin};
+use bevy_rerecast::prelude::*;
 
 pub mod loading_system;
 pub mod player_movement;
@@ -50,7 +51,6 @@ fn main() {
         .init_resource::<LookInput>()
         .init_resource::<AssetsLoading>()
         .init_resource::<LevelHandles>()
-        .init_resource::<NavMeshPrimitives>()
         .init_resource::<DebugFlags>() // remove this to disable debug stuff
         .add_plugins((
             DefaultPlugins.set(LogPlugin {
@@ -87,16 +87,15 @@ fn main() {
         )
         .add_systems(Startup, (
             start_loading_assets, 
-            start_loading_navmesh, 
             (
                 setup_ui, 
                 setup_debug_ui.run_if(resource_exists::<DebugFlags>)
             ).chain(),
         ))
-        .add_systems(OnEnter(MyAppState::InGame), (spawn_level_map, spawn_navmesh, setup_player, spawn_enemy))
+        .add_systems(OnEnter(MyAppState::InGame), (spawn_level_map, setup_player))
         .add_systems(
             PreUpdate,
-            ((handle_input, handle_debug_input.run_if(resource_exists::<DebugFlags>), player_movement, update_enemy)
+            ((handle_input, handle_debug_input.run_if(resource_exists::<DebugFlags>), player_movement)
                 .chain()
                 .after(InputSystem)
                 .in_set(GameplaySet),),

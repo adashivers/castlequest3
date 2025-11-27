@@ -1,10 +1,10 @@
 
 
 use super::Player;
-use crate::actor_navigation::GRAVITY;
 use bevy::{input::mouse::MouseMotion, prelude::*};
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*,};
 
+const GRAVITY: f32 = -9.85;
 const MOUSE_SENSITIVITY: f32 = 0.3;
 const GROUND_TIMER: f32 = 0.5;
 const MOVEMENT_SPEED: f32 = 8.0;
