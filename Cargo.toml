@@ -4,11 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bevy = { version = "0.16", features = ["dynamic_linking"] }
-bevy_behave = "0.3"
-bevy_landmass = "0.9.0"
-bevy_rapier3d = { version = "0.31.0", features = ["debug-render-3d"] }
+bevy = { version = "0.17.3", features = ["dynamic_linking", "bevy_remote"] }
+bevy_landmass = "0.10.0"
+bevy_rapier3d = { version = "*", features = ["debug-render-3d"] }
 bevy_rerecast = "0.3.0"
+landmass_rerecast = "0.1.0"
+
+[patch.crates-io]
+bevy_rapier3d = {git = 'https://github.com/dimforge/bevy_rapier.git'}
 
 # Enable a small amount of optimization in the dev profile.
 [profile.dev]

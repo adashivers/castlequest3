@@ -1,15 +1,21 @@
 use std::fmt::Debug;
+use crate::actor_navigation::move_enemy;
+use crate::actor_navigation::setup_archipelago;
+use crate::actor_navigation::spawn_enemy;
 use crate::loading_system::*;
 use crate::player_movement::*;
 use crate::ui::*;
-use crate::actor_navigation::*;
+use crate::actor_navigation::{CurrNavmesh};
 use crate::debug::*;
 
-use bevy::{input::InputSystem, prelude::*, log::LogPlugin};
+use bevy::{input::InputSystems, prelude::*, log::LogPlugin};
+use bevy::remote::{RemotePlugin, http::RemoteHttpPlugin};
 
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
 use bevy_landmass::{prelude::*, debug::Landmass3dDebugPlugin};
-use bevy_rerecast::prelude::*;
+
+use bevy_rerecast::{prelude::*, Mesh3dBackendPlugin};
+use landmass_rerecast::LandmassRerecastPlugin;
 
 pub mod loading_system;
 pub mod player_movement;
@@ -52,16 +58,29 @@ fn main() {
         .init_resource::<AssetsLoading>()
         .init_resource::<LevelHandles>()
         .init_resource::<DebugFlags>() // remove this to disable debug stuff
+        .init_resource::<CurrNavmesh>()
         .add_plugins((
             DefaultPlugins.set(LogPlugin {
                 filter: "moving_around=debug,wgpu_core=warn,wgpu_hal=warn".into(),
                 level: bevy::log::Level::INFO,
                 custom_layer: |_| None,
+                ..Default::default()
             }),
             RapierPhysicsPlugin::<NoUserData>::default(),
-            RapierDebugRenderPlugin::default(),
+            RapierDebugRenderPlugin{
+                enabled: false,
+                ..Default::default()
+            },
+            RemotePlugin::default(), RemoteHttpPlugin::default(),
             Landmass3dPlugin::default(),
-            Landmass3dDebugPlugin::default(),
+            Landmass3dDebugPlugin {
+                draw_on_start: false,
+                ..Default::default()
+            },
+            LandmassRerecastPlugin::default(),
+            NavmeshPlugins::default(),
+            Mesh3dBackendPlugin::default(),
+            
         ))
         .insert_state(MyAppState::Loading)
         .configure_sets(
@@ -92,18 +111,18 @@ fn main() {
                 setup_debug_ui.run_if(resource_exists::<DebugFlags>)
             ).chain(),
         ))
-        .add_systems(OnEnter(MyAppState::InGame), (spawn_level_map, setup_player))
+        .add_systems(OnExit(MyAppState::Loading), (spawn_level_map, (setup_archipelago, setup_player, spawn_enemy).chain()))
         .add_systems(
             PreUpdate,
             ((handle_input, handle_debug_input.run_if(resource_exists::<DebugFlags>), player_movement)
                 .chain()
-                .after(InputSystem)
+                .after(InputSystems)
                 .in_set(GameplaySet),),
         )
         .add_systems(
             Update,
             (
-                (player_look).in_set(GameplaySet),
+                (player_look, move_enemy).in_set(GameplaySet),
                 (checks_assets_loaded).in_set(LoadingSet),
                 update_ui,
                 update_debug_ui.run_if(resource_exists::<DebugFlags>),
@@ -127,8 +146,12 @@ impl Default for Health {
 #[derive(Component, Default)]
 pub struct Player;
 
-pub fn setup_player(mut commands: Commands) {
+pub fn setup_player(
+    mut commands: Commands,
+    archipelago_query: Query<(Entity, &Archipelago3d)>,
+) {
     const FOV: f32 = f32::to_radians(60.0);
+    let archipelago_entity = archipelago_query.single().expect("Cound not find single archipelago entity").0;
 
     commands
         .spawn((
@@ -155,6 +178,13 @@ pub fn setup_player(mut commands: Commands) {
                 snap_to_ground: None,
                 ..default()
             },
+            Character3dBundle {
+                character: default(),
+                settings: CharacterSettings {
+                    radius: 0.3
+                },
+                archipelago_ref: ArchipelagoRef3d::new(archipelago_entity),
+            }
         ))
         .with_children(|b| {
             // FPS Camera

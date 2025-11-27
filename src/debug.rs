@@ -2,6 +2,7 @@ use bevy::{
     prelude::*,
     color::palettes::{css::{BLACK, WHITE}},
 };
+use bevy_landmass::debug::EnableLandmassDebug;
 use bevy_rapier3d::{render::DebugRenderContext};
 use crate::ui::BrosOskonFont;
 
@@ -15,7 +16,7 @@ pub struct DebugFlags {
 impl Default for DebugFlags {
     fn default() -> Self {
         DebugFlags { 
-            show_colliders: true,
+            show_colliders: false,
             show_navmesh: false,
         }
     }
@@ -32,7 +33,7 @@ pub fn handle_debug_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     debug_flags: Option<ResMut<DebugFlags>>,
     debug_render_context: Option<ResMut<DebugRenderContext>>,
-    mut navmesh_display_query: Query<&mut Visibility, With<DebugNavmeshDisplay>>
+    mut landmass_debug: ResMut<EnableLandmassDebug>
 ) {
     // set debug input stuff
     match debug_flags {
@@ -46,9 +47,7 @@ pub fn handle_debug_input(
             if keyboard.just_pressed(KeyCode::KeyN) {
                 let next = !flags.show_navmesh;
                 debug!("show_navmesh set to {}", next);
-                for mut vis in navmesh_display_query.iter_mut() {
-                    vis.toggle_visible_hidden();
-                }
+                landmass_debug.0 = next;
                 flags.show_navmesh = next;
             }
         },

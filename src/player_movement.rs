@@ -4,7 +4,7 @@ use super::Player;
 use bevy::{input::mouse::MouseMotion, prelude::*};
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*,};
 
-const GRAVITY: f32 = -9.85;
+const GRAVITY: f32 = -9.8;
 const MOUSE_SENSITIVITY: f32 = 0.3;
 const GROUND_TIMER: f32 = 0.5;
 const MOVEMENT_SPEED: f32 = 8.0;
@@ -22,7 +22,7 @@ pub fn handle_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut movement: ResMut<MovementInput>,
     mut look: ResMut<LookInput>,
-    mut mouse_events: EventReader<MouseMotion>,
+    mut mouse_events: MessageReader<MouseMotion>,
 ) {
     if keyboard.pressed(KeyCode::KeyW) {
         movement.z -= 1.0;
