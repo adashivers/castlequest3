@@ -8,7 +8,7 @@ use crate::debug::*;
 use bevy::{input::InputSystem, prelude::*, log::LogPlugin};
 
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
-use vleue_navigator::VleueNavigatorPlugin;
+use bevy_landmass::{prelude::*, debug::Landmass3dDebugPlugin};
 
 pub mod loading_system;
 pub mod player_movement;
@@ -60,7 +60,8 @@ fn main() {
             }),
             RapierPhysicsPlugin::<NoUserData>::default(),
             RapierDebugRenderPlugin::default(),
-            VleueNavigatorPlugin,
+            Landmass3dPlugin::default(),
+            Landmass3dDebugPlugin::default(),
         ))
         .insert_state(MyAppState::Loading)
         .configure_sets(
@@ -192,7 +193,7 @@ pub fn spawn_level_map(
         Some(collider) => {
             commands.spawn((
                 Mesh3d(lvl_mesh_handle.clone()),
-                MeshMaterial3d(materials.add(Color::WHITE)),
+                MeshMaterial3d(materials.add(Color::BLACK)),
                 Transform::from_xyz(0.0, 0.0, 0.0),
                 Name::new("Level Mesh"),
                 Visibility::Visible, // ALERT: change this back to visible after finished with testing navmesh

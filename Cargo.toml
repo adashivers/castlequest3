@@ -6,8 +6,9 @@ edition = "2024"
 [dependencies]
 bevy = { version = "0.16", features = ["dynamic_linking"] }
 bevy_behave = "0.3"
+bevy_landmass = "0.9.0"
 bevy_rapier3d = { version = "0.31.0", features = ["debug-render-3d"] }
-vleue_navigator = { version = "0.13", features = ["debug-with-gizmos"] }
+bevy_rerecast = "0.3.0"
 
 # Enable a small amount of optimization in the dev profile.
 [profile.dev]

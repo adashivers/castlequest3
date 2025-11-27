@@ -9,7 +9,7 @@ use crate::ui::BrosOskonFont;
 #[derive(Resource)]
 pub struct DebugFlags {
     pub show_colliders: bool,
-    pub show_navmesh: bool,
+    pub show_navmesh: bool
 }
 
 impl Default for DebugFlags {
