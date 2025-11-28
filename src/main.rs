@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use crate::actor_navigation::generate_navmesh;
 use crate::actor_navigation::move_enemy;
 use crate::actor_navigation::setup_archipelago;
 use crate::actor_navigation::spawn_enemy;
@@ -57,7 +58,7 @@ fn main() {
         .init_resource::<LookInput>()
         .init_resource::<AssetsLoading>()
         .init_resource::<LevelHandles>()
-        .init_resource::<DebugFlags>() // remove this to disable debug stuff
+        .init_resource::<DebugFlags>() // remove this to disable debug stuff completely
         .init_resource::<CurrNavmesh>()
         .add_plugins((
             DefaultPlugins.set(LogPlugin {
@@ -68,13 +69,13 @@ fn main() {
             }),
             RapierPhysicsPlugin::<NoUserData>::default(),
             RapierDebugRenderPlugin{
-                enabled: false,
+                enabled: SHOW_COLLIDERS,
                 ..Default::default()
             },
             RemotePlugin::default(), RemoteHttpPlugin::default(),
             Landmass3dPlugin::default(),
             Landmass3dDebugPlugin {
-                draw_on_start: false,
+                draw_on_start: SHOW_NAVMESH,
                 ..Default::default()
             },
             LandmassRerecastPlugin::default(),
@@ -111,7 +112,7 @@ fn main() {
                 setup_debug_ui.run_if(resource_exists::<DebugFlags>)
             ).chain(),
         ))
-        .add_systems(OnExit(MyAppState::Loading), (spawn_level_map, (setup_archipelago, setup_player, spawn_enemy).chain()))
+        .add_systems(OnExit(MyAppState::Loading), (spawn_level_map, (generate_navmesh, setup_archipelago, setup_player, spawn_enemy).chain()))
         .add_systems(
             PreUpdate,
             ((handle_input, handle_debug_input.run_if(resource_exists::<DebugFlags>), player_movement)
@@ -122,10 +123,13 @@ fn main() {
         .add_systems(
             Update,
             (
-                (player_look, move_enemy).in_set(GameplaySet),
+                (
+                    player_look, 
+                    move_enemy, 
+                    update_ui, 
+                    update_debug_ui.run_if(resource_exists::<DebugFlags>)
+                ).in_set(GameplaySet),
                 (checks_assets_loaded).in_set(LoadingSet),
-                update_ui,
-                update_debug_ui.run_if(resource_exists::<DebugFlags>),
             ),
         )
         // .add_systems(FixedUpdate, ((player_movement).in_set(GameplaySet),))
@@ -148,10 +152,10 @@ pub struct Player;
 
 pub fn setup_player(
     mut commands: Commands,
-    archipelago_query: Query<(Entity, &Archipelago3d)>,
+    island_archipelago_ref: Query<&mut ArchipelagoRef3d, With<Island>>,
 ) {
     const FOV: f32 = f32::to_radians(60.0);
-    let archipelago_entity = archipelago_query.single().expect("Cound not find single archipelago entity").0;
+    let archipelago_ref = ArchipelagoRef3d::new(island_archipelago_ref.single().expect("Cound not find archipelago reference on island").entity);
 
     commands
         .spawn((
@@ -178,13 +182,6 @@ pub fn setup_player(
                 snap_to_ground: None,
                 ..default()
             },
-            Character3dBundle {
-                character: default(),
-                settings: CharacterSettings {
-                    radius: 0.3
-                },
-                archipelago_ref: ArchipelagoRef3d::new(archipelago_entity),
-            }
         ))
         .with_children(|b| {
             // FPS Camera
@@ -198,6 +195,16 @@ pub fn setup_player(
                         ..Default::default()
                     }
                 )
+            ));
+            b.spawn((
+                Transform::from_xyz(0.0, -0.9, 0.0),
+                Character3dBundle {
+                    character: default(),
+                    settings: CharacterSettings {
+                        radius: 0.3
+                    },
+                    archipelago_ref,
+                }
             ));
         });
 }

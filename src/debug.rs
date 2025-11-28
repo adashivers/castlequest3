@@ -2,9 +2,14 @@ use bevy::{
     prelude::*,
     color::palettes::{css::{BLACK, WHITE}},
 };
+use super::Player;
 use bevy_landmass::debug::EnableLandmassDebug;
 use bevy_rapier3d::{render::DebugRenderContext};
 use crate::ui::BrosOskonFont;
+
+// edit to change initial flags for debug
+pub const SHOW_COLLIDERS: bool = false;
+pub const SHOW_NAVMESH: bool = true;
 
 /// Debug input vector. Debug systems should only run if this resource exists.
 #[derive(Resource)]
@@ -16,8 +21,8 @@ pub struct DebugFlags {
 impl Default for DebugFlags {
     fn default() -> Self {
         DebugFlags { 
-            show_colliders: false,
-            show_navmesh: false,
+            show_colliders: SHOW_COLLIDERS,
+            show_navmesh: SHOW_NAVMESH,
         }
     }
 }
@@ -26,6 +31,8 @@ impl Default for DebugFlags {
 pub struct DebugCollidersVisibleText;
 #[derive(Component, Default)]
 pub struct DebugNavmeshVisibleText;
+#[derive(Component, Default)]
+pub struct DebugPlayerPositionText;
 #[derive(Component, Default)]
 pub struct DebugNavmeshDisplay;
 
@@ -82,7 +89,26 @@ pub fn setup_debug_ui(
                 ))
                 .with_children(|builder| {
                     builder.spawn((
-                        TextSpan::new("(T) Show colliders: "),
+                        TextSpan::new("Player position: "),
+                        TextFont {
+                            font: font.clone(),
+                            font_size: 30.0,
+                            ..default()
+                        },
+                        TextColor(BLACK.into()),
+                    ));
+                    builder.spawn((
+                        TextSpan::new(""),
+                        TextFont {
+                            font: font.clone(),
+                            font_size: 30.0,
+                            ..default()
+                        },
+                        TextColor(BLACK.into()),
+                        DebugPlayerPositionText,
+                    ));
+                    builder.spawn((
+                        TextSpan::new("\n(T) Show colliders: "),
                         TextFont {
                             font: font.clone(),
                             font_size: 30.0,
@@ -128,9 +154,11 @@ pub fn setup_debug_ui(
 
 pub fn update_debug_ui(
     debug_flags: Option<ResMut<DebugFlags>>,
+    player_query: Query<&Transform, With<Player>>,
     mut debug_text_query_set: ParamSet<(
         Query<&mut TextSpan, With<DebugCollidersVisibleText>>,
-        Query<&mut TextSpan, With<DebugNavmeshVisibleText>>
+        Query<&mut TextSpan, With<DebugNavmeshVisibleText>>,
+        Query<&mut TextSpan, With<DebugPlayerPositionText>>
     )>,
 ) {
     // update debug text
@@ -141,6 +169,11 @@ pub fn update_debug_ui(
             }
             for mut span in debug_text_query_set.p1().iter_mut() {
                 **span = flags.show_navmesh.to_string();
+            }
+            for mut span in debug_text_query_set.p2().iter_mut() {
+                let player_translation = player_query.single().unwrap().translation;
+                let player_translation = (player_translation * 100.0).trunc() / 100.0; // truncate to 2 decimal pts to reduce visual clutter
+                **span = player_translation.to_string();
             }
         }
         None => {}

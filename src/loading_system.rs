@@ -1,8 +1,8 @@
 use super::LevelHandles;
 use super::MyAppState;
-use crate::actor_navigation::CurrNavmesh;
+// use crate::actor_navigation::CurrNavmesh;
 use bevy::{asset::LoadState, asset::UntypedAssetId, prelude::*};
-use bevy_rerecast::Navmesh;
+// use bevy_rerecast::Navmesh;
 
 // A list of assets currently being loaded.
 // This should be a Single resource
@@ -15,19 +15,19 @@ pub fn start_loading_assets(
     asset_server: Res<AssetServer>,
     mut loading: ResMut<AssetsLoading>,
     mut lvl_handles: ResMut<LevelHandles>,
-    mut curr_navmesh: ResMut<CurrNavmesh>,
+    //mut curr_navmesh: ResMut<CurrNavmesh>,
 ) {
     debug!("Loading assets...");
 
     let level_mesh: Handle<Mesh> = asset_server.load("models/dungeon.glb#Mesh0/Primitive0");
-    let level_navmesh: Handle<Navmesh> = asset_server.load("navmeshes/castle_navmesh.nav");
+    // let level_navmesh: Handle<Navmesh> = asset_server.load("navmeshes/castle_navmesh.nav");
     lvl_handles.0.push(level_mesh.clone());
-    curr_navmesh.0 = level_navmesh.clone();
+    //curr_navmesh.0 = level_navmesh.clone();
     
     // add everything to loading list
     let new_assets: Vec<UntypedHandle> = vec![
         level_mesh.into(),
-        level_navmesh.into(),
+        //level_navmesh.into(),
     ];  
     loading.0.extend(new_assets);
 }
