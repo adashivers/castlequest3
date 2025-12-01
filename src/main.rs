@@ -1,14 +1,14 @@
 use std::fmt::Debug;
 use crate::actor_navigation::generate_navmesh;
-use crate::actor_navigation::move_enemy;
 use crate::actor_navigation::setup_archipelago;
-use crate::actor_navigation::spawn_enemy;
 use crate::loading_system::*;
 use crate::player_movement::*;
 use crate::ui::*;
 use crate::actor_navigation::{CurrNavmesh};
 use crate::debug::*;
 
+use bevy::window::CursorGrabMode;
+use bevy::window::CursorOptions;
 use bevy::{input::InputSystems, prelude::*, log::LogPlugin};
 use bevy::remote::{RemotePlugin, http::RemoteHttpPlugin};
 
@@ -23,6 +23,7 @@ pub mod player_movement;
 pub mod ui;
 pub mod actor_navigation;
 pub mod debug;
+pub mod skeleton;
 
 // States of the app in general. Could become more complicated in the future
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
@@ -112,7 +113,18 @@ fn main() {
                 setup_debug_ui.run_if(resource_exists::<DebugFlags>)
             ).chain(),
         ))
-        .add_systems(OnExit(MyAppState::Loading), (spawn_level_map, (generate_navmesh, setup_archipelago, setup_player, spawn_enemy).chain()))
+        .add_systems(OnExit(MyAppState::Loading),
+         (
+            spawn_level_map, 
+            (
+                generate_navmesh, 
+                setup_archipelago, 
+                setup_player,
+                skeleton::load_animations,
+                skeleton::spawn,
+            ).chain()
+        )
+        )
         .add_systems(
             PreUpdate,
             ((handle_input, handle_debug_input.run_if(resource_exists::<DebugFlags>), player_movement)
@@ -125,9 +137,13 @@ fn main() {
             (
                 (
                     player_look, 
-                    move_enemy, 
                     update_ui, 
-                    update_debug_ui.run_if(resource_exists::<DebugFlags>)
+                    update_debug_ui.run_if(resource_exists::<DebugFlags>),
+                    (
+                        skeleton::setup_animations_once_loaded,
+                        skeleton::update_skellys,
+                    ).chain(),
+                    grab_mouse,
                 ).in_set(GameplaySet),
                 (checks_assets_loaded).in_set(LoadingSet),
             ),
@@ -239,5 +255,26 @@ pub fn spawn_level_map(
         _ => {
             panic!("Could not generate collider for level mesh");
         }
+    }
+}
+
+// This system grabs the mouse when the left mouse button is pressed
+// and releases it when the escape key is pressed
+// copied almost directly from bevy example mouse_grab.
+fn grab_mouse(
+    mut cursor_options_q: Query<&mut CursorOptions>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    key: Res<ButtonInput<KeyCode>>,
+) {
+    let mut cursor_options = cursor_options_q.single_mut().unwrap();
+
+    if mouse.just_pressed(MouseButton::Left) {
+        cursor_options.visible = false;
+        cursor_options.grab_mode = CursorGrabMode::Locked;
+    }
+
+    if key.just_pressed(KeyCode::Escape) {
+        cursor_options.visible = true;
+        cursor_options.grab_mode = CursorGrabMode::None;
     }
 }
