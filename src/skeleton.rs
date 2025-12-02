@@ -82,9 +82,9 @@ pub fn spawn(
   commands.spawn((
 	Skeleton::default(),
 	Health { hp: 100 },
-	Transform::from_xyz(-35.0, 10.0, -10.0),
+	Transform::from_xyz(-35.0, 3.7, -10.0),
 	Visibility::default(),
-	Collider::round_cylinder(0.8, 0.3, 0.2),
+	Collider::round_cylinder(1.0, 0.1, 0.0),
 	MeshMaterial3d(materials.add(StandardMaterial::default())),
 	KinematicCharacterController {
 		custom_mass: Some(5.0),
@@ -101,13 +101,13 @@ pub fn spawn(
 		// Automatically slide down on slopes smaller than 30 degrees.
 		min_slope_slide_angle: 30.0_f32.to_radians(),
 		apply_impulse_to_dynamic_bodies: true,
-		snap_to_ground: None,
+		snap_to_ground: Some(CharacterLength::Absolute(5.0)),
 		..default()
 	},
 	children![
 		(
 			// navmesh agent
-			Transform::from_xyz(0.0, -0.9, 0.0),
+			Transform::from_xyz(0.0, -1.0, 0.0),
 			Agent3dBundle {
 				agent: default(),
 				settings: AgentSettings {
@@ -123,7 +123,7 @@ pub fn spawn(
 		),
 		(
 			// skeleton mesh
-			Transform::from_xyz(0.0, -0.8, 0.0),
+			Transform::from_xyz(0.0, -1.0, 0.0),
 			SceneRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset("models/skeleton.glb"))),
 		)
 	]
@@ -139,32 +139,53 @@ pub fn update_skellys(
 	animations: Res<Animations>,
 	time: Res<Time>,
 ) {
-	for (parent, agent_state, desired_velocity, mut last_state) in skelly_agents.iter_mut() {
+	for (
+		parent, 
+		agent_state, 
+		desired_velocity, 
+		mut last_state
+	) in skelly_agents.iter_mut() {
+		
 		// set animation depending on agent state
 		if *agent_state != last_state.0 {
-			for (mut animation_player, mut transitions) in animation_players.iter_mut() {
+			for (
+				mut animation_player, 
+				mut transitions
+			) in animation_players.iter_mut() {
 				match agent_state {
 					AgentState::Moving => {
 						transitions
-							.play(&mut animation_player, animations.animations[2], Duration::from_millis(250))
+							.play(
+								&mut animation_player, 
+								animations.animations[2], 
+								Duration::from_millis(250)
+							)
 							.repeat();
 					},
 					AgentState::ReachedTarget => {
+						// this will change in the future to trigger an "on attack" event
+						// instead of playing the attack animation on loop
 						transitions
-							.play(&mut animation_player, animations.animations[1], Duration::from_millis(250))
+							.play(
+								&mut animation_player, 
+								animations.animations[1], 
+								Duration::from_millis(250)
+							)
 							.repeat();
 					},
 					_ => {
 						transitions
-							.play(&mut animation_player, animations.animations[0], Duration::from_millis(250))
+							.play(
+								&mut animation_player, 
+								animations.animations[0], 
+								Duration::from_millis(250)
+							)
 							.repeat();
 					},
 				}
 			}
 			last_state.0 = *agent_state;
 		}
-		
-		
 		
 		let (mut controller, mut transform) = skelly_query.get_mut(parent.parent()).unwrap();
 
@@ -174,7 +195,7 @@ pub fn update_skellys(
 		}
 		
 		// set next velocity
-		let mut next_velocity: Vec3 = Vec3::new(0.0, -9.8, 0.0); // apply gravity
+		let mut next_velocity: Vec3 = Vec3::new(0.0, -0.1, 0.0); // slight downward tilt so that the collider snaps to the ground.
 		next_velocity += desired_velocity.velocity(); // add desired velocity
 		controller.translation = Some(next_velocity * time.delta_secs());
 	

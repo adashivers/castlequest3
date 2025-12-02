@@ -4,11 +4,14 @@ use super::Player;
 use bevy::{input::mouse::MouseMotion, prelude::*};
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*,};
 
-const GRAVITY: f32 = -9.8;
-const MOUSE_SENSITIVITY: f32 = 0.3;
-const GROUND_TIMER: f32 = 0.5;
-const MOVEMENT_SPEED: f32 = 8.0;
-const JUMP_SPEED: f32 = 20.0;
+pub const GRAVITY: f32 = -9.8;
+pub const MOUSE_SENSITIVITY: f32 = 0.3;
+pub const GROUND_TIMER: f32 = 0.5;
+pub const MOVEMENT_SPEED: f32 = 8.0;
+pub const JUMP_SPEED: f32 = 20.0;
+
+pub fn highest_point() -> f32 { JUMP_SPEED * JUMP_SPEED / (-2.0 * GRAVITY) } // the max height this player can gain with a jump
+
 
 /// Keyboard input vector
 #[derive(Default, Resource, Deref, DerefMut)]

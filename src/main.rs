@@ -179,7 +179,7 @@ pub fn setup_player(
             Health { hp: 90 },
             Transform::from_xyz(0.0, 5.0, 0.0),
             Visibility::default(),
-            Collider::round_cylinder(0.9, 0.3, 0.2),
+            Collider::round_cylinder(0.7, 0.1, 0.0),
             KinematicCharacterController {
                 custom_mass: Some(5.0),
                 up: Vec3::Y,
@@ -213,7 +213,7 @@ pub fn setup_player(
                 )
             ));
             b.spawn((
-                Transform::from_xyz(0.0, -0.9, 0.0),
+                Transform::from_xyz(0.0, -0.7, 0.0),
                 Character3dBundle {
                     character: default(),
                     settings: CharacterSettings {
