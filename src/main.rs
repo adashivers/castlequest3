@@ -1,4 +1,7 @@
 use std::fmt::Debug;
+use crate::actor_navigation::NavmeshGenerating;
+use crate::actor_navigation::NavmeshGeneratingBackendPlugin;
+use crate::actor_navigation::NavmeshGenerators;
 use crate::actor_navigation::generate_navmesh;
 use crate::actor_navigation::setup_archipelago;
 use crate::loading_system::*;
@@ -15,7 +18,7 @@ use bevy::remote::{RemotePlugin, http::RemoteHttpPlugin};
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
 use bevy_landmass::{prelude::*, debug::Landmass3dDebugPlugin};
 
-use bevy_rerecast::{prelude::*, Mesh3dBackendPlugin};
+use bevy_rerecast::{prelude::*};
 use landmass_rerecast::LandmassRerecastPlugin;
 
 pub mod loading_system;
@@ -40,14 +43,6 @@ pub struct LoadingSet;
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GameplaySet;
 
-// a list of mesh handles for the levels currently open.
-// This should be a Single resource
-// Clear vector to unload resources whenever possible
-#[derive(Default, Resource)]
-pub struct LevelHandles(Vec<Handle<Mesh>>);
-
-
-
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::srgb(
@@ -58,7 +53,8 @@ fn main() {
         .init_resource::<MovementInput>()
         .init_resource::<LookInput>()
         .init_resource::<AssetsLoading>()
-        .init_resource::<LevelHandles>()
+        .init_resource::<GameScenes>()
+        .init_resource::<NavmeshGenerators>()
         .init_resource::<DebugFlags>() // remove this to disable debug stuff completely
         .init_resource::<CurrNavmesh>()
         .add_plugins((
@@ -81,7 +77,7 @@ fn main() {
             },
             LandmassRerecastPlugin::default(),
             NavmeshPlugins::default(),
-            Mesh3dBackendPlugin::default(),
+            NavmeshGeneratingBackendPlugin::default(),
             
         ))
         .insert_state(MyAppState::Loading)
@@ -213,7 +209,7 @@ pub fn setup_player(
                 )
             ));
             b.spawn((
-                Transform::from_xyz(0.0, -0.7, 0.0),
+                Transform::from_xyz(0.0, -0.8, 0.0),
                 Character3dBundle {
                     character: default(),
                     settings: CharacterSettings {
@@ -230,32 +226,43 @@ pub fn spawn_level_map(
     mut commands: Commands,
     meshes: Res<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    lvl_handles: Res<LevelHandles>,
+    scenes: Res<GameScenes>,
+    navmesh_generators: Res<NavmeshGenerators>,
 ) {
-    let lvl_mesh_handle = &lvl_handles.0[0];
-    let lvl_mesh = meshes
-        .get(lvl_mesh_handle)
-        .expect("Could not find level mesh");
+    navmesh_generators.0
+        .iter()
+        .for_each(|gen_mesh_handle| {
+            let gen_mesh = meshes
+                .get(gen_mesh_handle.id())
+                .expect("couldn't get mesh for generating collider/navmesh");
+            let collider_option = Collider::from_bevy_mesh(
+                gen_mesh, 
+                &ComputedColliderShape::TriMesh(TriMeshFlags::all())
+            );
+            match collider_option {
+                Some(collider) => {
+                    commands.spawn((
+                        Mesh3d(gen_mesh_handle.clone()),
+                        MeshMaterial3d(materials.add(Color::BLACK)),
+                        Transform::from_xyz(0.0, 0.0, 0.0),
+                        Visibility::Hidden,
+                        NavmeshGenerating,
+                        collider,
+                    ));
+                }
+                _ => {
+                    panic!("Could not generate collider");
+                }
+            }
 
-    let lvl_collider = Collider::from_bevy_mesh(
-        lvl_mesh,
-        &ComputedColliderShape::TriMesh(TriMeshFlags::all()),
-    );
-    match lvl_collider {
-        Some(collider) => {
-            commands.spawn((
-                Mesh3d(lvl_mesh_handle.clone()),
-                MeshMaterial3d(materials.add(Color::BLACK)),
-                Transform::from_xyz(0.0, 0.0, 0.0),
-                Name::new("Level Mesh"),
-                Visibility::Visible, // ALERT: change this back to visible after finished with testing navmesh
-                collider,
-            ));
-        }
-        _ => {
-            panic!("Could not generate collider for level mesh");
-        }
-    }
+        });
+    
+    scenes.0
+        .iter()
+        .for_each(|scene| {
+            commands.spawn(SceneRoot(scene.clone()));
+        });
+    
 }
 
 // This system grabs the mouse when the left mouse button is pressed

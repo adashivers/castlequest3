@@ -107,7 +107,7 @@ pub fn spawn(
 	children![
 		(
 			// navmesh agent
-			Transform::from_xyz(0.0, -1.0, 0.0),
+			Transform::from_xyz(0.0, -1.1, 0.0),
 			Agent3dBundle {
 				agent: default(),
 				settings: AgentSettings {
@@ -148,6 +148,7 @@ pub fn update_skellys(
 		
 		// set animation depending on agent state
 		if *agent_state != last_state.0 {
+			debug!("skeleton state: {:?}", agent_state);
 			for (
 				mut animation_player, 
 				mut transitions

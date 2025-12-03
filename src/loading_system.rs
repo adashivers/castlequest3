@@ -1,4 +1,5 @@
-use super::LevelHandles;
+use crate::actor_navigation::NavmeshGenerators;
+
 use super::MyAppState;
 // use crate::actor_navigation::CurrNavmesh;
 use bevy::{asset::LoadState, asset::UntypedAssetId, prelude::*};
@@ -10,24 +11,29 @@ use bevy::{asset::LoadState, asset::UntypedAssetId, prelude::*};
 #[derive(Default, Resource)]
 pub struct AssetsLoading(pub(crate) Vec<UntypedHandle>);
 
+// list of scenes in the game
+#[derive(Default, Resource)]
+pub struct GameScenes(pub(crate) Vec<Handle<Scene>>);
+
 // Start loading assets for the level.
 pub fn start_loading_assets(
     asset_server: Res<AssetServer>,
     mut loading: ResMut<AssetsLoading>,
-    mut lvl_handles: ResMut<LevelHandles>,
-    //mut curr_navmesh: ResMut<CurrNavmesh>,
+    mut navmesh_generators: ResMut<NavmeshGenerators>,
+    mut scenes: ResMut<GameScenes>,
 ) {
     debug!("Loading assets...");
 
-    let level_mesh: Handle<Mesh> = asset_server.load("models/dungeon.glb#Mesh0/Primitive0");
-    // let level_navmesh: Handle<Navmesh> = asset_server.load("navmeshes/castle_navmesh.nav");
-    lvl_handles.0.push(level_mesh.clone());
-    //curr_navmesh.0 = level_navmesh.clone();
-    
+    let castle_navmesh_gen_mesh: Handle<Mesh> = asset_server.load("models/dungeon.glb#Mesh0/Primitive0");
+    let castle_scene: Handle<Scene> = asset_server.load(
+        GltfAssetLabel::Scene(0).from_asset("models/dungeontex.glb"),
+    );
+    navmesh_generators.0.push(castle_navmesh_gen_mesh.clone());
+    scenes.0.push(castle_scene.clone());
     // add everything to loading list
     let new_assets: Vec<UntypedHandle> = vec![
-        level_mesh.into(),
-        //level_navmesh.into(),
+        castle_navmesh_gen_mesh.into(),
+        castle_scene.into(),
     ];  
     loading.0.extend(new_assets);
 }
