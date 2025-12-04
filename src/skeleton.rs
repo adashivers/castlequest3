@@ -111,9 +111,9 @@ pub fn spawn(
 			Agent3dBundle {
 				agent: default(),
 				settings: AgentSettings {
-				radius: 0.3,
-				desired_speed: 1.0,
-				max_speed: 5.0,
+					radius: 0.3,
+					desired_speed: 1.0,
+					max_speed: 5.0,
 				},
 				archipelago_ref,
 			},

@@ -57,6 +57,7 @@ fn main() {
         .init_resource::<NavmeshGenerators>()
         .init_resource::<DebugFlags>() // remove this to disable debug stuff completely
         .init_resource::<CurrNavmesh>()
+        .init_gizmo_group::<AgentStateGizmos>()
         .add_plugins((
             DefaultPlugins.set(LogPlugin {
                 filter: "moving_around=debug,wgpu_core=warn,wgpu_hal=warn".into(),
@@ -132,6 +133,8 @@ fn main() {
             Update,
             (
                 (
+                    draw_agent_state_gizmos,
+                    update_gizmo_configs,
                     player_look, 
                     update_ui, 
                     update_debug_ui.run_if(resource_exists::<DebugFlags>),

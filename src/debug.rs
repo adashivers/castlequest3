@@ -1,9 +1,9 @@
 use bevy::{
     prelude::*,
-    color::palettes::{css::{BLACK, WHITE}},
+    color::palettes::css::*,
 };
 use super::Player;
-use bevy_landmass::debug::EnableLandmassDebug;
+use bevy_landmass::{AgentState, debug::EnableLandmassDebug};
 use bevy_rapier3d::{render::DebugRenderContext};
 use crate::ui::BrosOskonFont;
 
@@ -23,6 +23,49 @@ impl Default for DebugFlags {
         DebugFlags { 
             show_colliders: SHOW_COLLIDERS,
             show_navmesh: SHOW_NAVMESH,
+        }
+    }
+}
+
+#[derive(Default, Reflect, GizmoConfigGroup)]
+pub struct AgentStateGizmos; // Gizmos showing agent state
+
+pub fn draw_agent_state_gizmos(
+    mut agent_gizmos: Gizmos<AgentStateGizmos>,
+    agent_query: Query<(&AgentState, &GlobalTransform)>,
+) {
+    agent_query
+    .iter()
+    .for_each(|(agent_state, transform)| {
+        let isometry = transform.to_isometry();
+        let color = match agent_state {
+            AgentState::Idle => GRAY,
+            AgentState::AgentNotOnNavMesh => RED,
+            AgentState::TargetNotOnNavMesh => MAROON,
+            AgentState::Moving => GREEN,
+            AgentState::ReachedTarget => LIME,
+            AgentState::NoPath => BLACK,
+            AgentState::Paused => SILVER,
+            AgentState::ReachedAnimationLink => TEAL,
+            AgentState::UsingAnimationLink => BLUE,
+        };
+        agent_gizmos.sphere(isometry, 0.2f32, color);
+    });
+}
+
+pub fn update_gizmo_configs(
+    mut config_store: ResMut<GizmoConfigStore>,
+    debug_flags: Option<Res<DebugFlags>>
+) {
+    let (config, _) = config_store.config_mut::<AgentStateGizmos>();
+    match debug_flags {
+        Some(flags) => {
+            config.enabled = flags.show_navmesh;
+            config.line.width = 7.0;
+            config.depth_bias = -0.5;
+        },
+        _ => {
+            config.enabled = false;
         }
     }
 }
