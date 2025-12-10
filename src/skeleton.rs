@@ -230,8 +230,6 @@ pub fn spawn(
   ));
 }
 
-
-
 pub fn update_skellys(
 	mut skelly_query: Query<(&mut KinematicCharacterController, &mut Transform, &AnimationEntityLink), With<Skeleton>>,
 	mut skelly_agents: Query<(&ChildOf, &AgentState, &AgentDesiredVelocity3d, &mut LastState)>,

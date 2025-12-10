@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use crate::loading_system::{GameScenes, LoadingSystemPlugin};
 use crate::player_movement::PlayerMovementPlugin;
-use crate::actor_navigation::{ActorNavigationPlugin, ArchipelagoSetup, CurrNavmesh, NavmeshGenerating, NavmeshGenerators};
+use crate::actor_navigation::{ActorNavigationPlugin, ArchipelagoSetup, NavmeshGenerating, NavmeshGenerators};
 use crate::debug::{CQ3DebugPlugin};
 use crate::skeleton::EnemySpawnPlugin;
 use crate::ui::UIPlugin;
@@ -43,7 +43,6 @@ fn main() {
             0xF9 as f32 / 255.0,
             0xFF as f32 / 255.0,
         )))
-        .init_resource::<CurrNavmesh>()
         // external plugins
         .add_plugins((
             DefaultPlugins.set(LogPlugin {
