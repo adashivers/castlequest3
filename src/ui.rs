@@ -11,6 +11,22 @@ pub struct HealthText;
 #[derive(Resource, Deref, DerefMut)]
 pub struct BrosOskonFont(Handle<Font>);
 
+pub struct UIPlugin;
+impl Plugin for UIPlugin {
+    fn build(&self, app: &mut App) {
+        app
+        .add_systems(Startup, 
+            setup_ui.after(crate::loading_system::start_loading_assets)
+        )
+        .add_systems(Update,
+            update_ui
+            .after(crate::player_movement::player_look)
+            .in_set(super::GameplaySet)
+        );
+    }
+}
+
+
 pub fn setup_ui(
     mut commands: Commands,
     asset_server: Res<AssetServer>,

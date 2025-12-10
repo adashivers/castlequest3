@@ -15,6 +15,21 @@ pub struct AssetsLoading(pub(crate) Vec<UntypedHandle>);
 #[derive(Default, Resource)]
 pub struct GameScenes(pub(crate) Vec<Handle<Scene>>);
 
+pub struct LoadingSystemPlugin;
+impl Plugin for LoadingSystemPlugin {
+    fn build(&self, app: &mut App) {
+        app
+        .init_resource::<AssetsLoading>()
+        .init_resource::<GameScenes>()
+        .add_systems(Startup, (
+            start_loading_assets,
+        ))
+        .add_systems(Update, checks_assets_loaded.in_set(super::LoadingSet));
+    }
+}
+
+
+
 // Start loading assets for the level.
 pub fn start_loading_assets(
     asset_server: Res<AssetServer>,

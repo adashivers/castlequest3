@@ -3,9 +3,10 @@ use bevy::{
     color::palettes::css::*,
 };
 use super::Player;
-use bevy_landmass::{AgentState, debug::EnableLandmassDebug};
-use bevy_rapier3d::{render::DebugRenderContext};
-use crate::ui::BrosOskonFont;
+use bevy_landmass::{AgentState, debug::{EnableLandmassDebug, Landmass3dDebugPlugin}};
+use bevy_rapier3d::render::{DebugRenderContext, RapierDebugRenderPlugin};
+use crate::{player_movement::handle_input, ui::{BrosOskonFont}};
+
 
 // edit to change initial flags for debug
 pub const SHOW_COLLIDERS: bool = false;
@@ -26,6 +27,43 @@ impl Default for DebugFlags {
         }
     }
 }
+
+pub struct CQ3DebugPlugin;
+impl Plugin for CQ3DebugPlugin {
+    fn build(&self, app: &mut App) {
+        app
+        .init_resource::<DebugFlags>() // remove this to disable debug stuff completely
+        .init_gizmo_group::<AgentStateGizmos>()
+        .add_plugins((
+            RapierDebugRenderPlugin{
+                enabled: SHOW_COLLIDERS,
+                ..Default::default()
+            },
+            Landmass3dDebugPlugin {
+                draw_on_start: SHOW_NAVMESH,
+                ..Default::default()
+            },
+        ))
+        .add_systems(Startup, 
+            setup_debug_ui
+                .run_if(resource_exists::<DebugFlags>)
+                .after(crate::ui::setup_ui)
+        )
+        .add_systems(PreUpdate,
+        handle_debug_input
+            .run_if(resource_exists::<DebugFlags>)
+            .after(handle_input)
+            .in_set(super::GameplaySet)
+        )
+        .add_systems(Update,
+            (
+                (draw_agent_state_gizmos, update_gizmo_configs,).chain().before(crate::player_movement::player_look),
+                update_debug_ui.run_if(resource_exists::<DebugFlags>).after(crate::ui::update_ui)
+            ).in_set(super::GameplaySet)
+        );
+    }
+}
+
 
 #[derive(Default, Reflect, GizmoConfigGroup)]
 pub struct AgentStateGizmos; // Gizmos showing agent state

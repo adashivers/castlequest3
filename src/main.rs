@@ -1,25 +1,18 @@
 use std::fmt::Debug;
-use crate::actor_navigation::NavmeshGenerating;
-use crate::actor_navigation::NavmeshGeneratingBackendPlugin;
-use crate::actor_navigation::NavmeshGenerators;
-use crate::actor_navigation::generate_navmesh;
-use crate::actor_navigation::setup_archipelago;
-use crate::loading_system::*;
-use crate::player_movement::*;
-use crate::ui::*;
-use crate::actor_navigation::{CurrNavmesh};
-use crate::debug::*;
+use crate::loading_system::{GameScenes, LoadingSystemPlugin};
+use crate::player_movement::PlayerMovementPlugin;
+use crate::actor_navigation::{ActorNavigationPlugin, ArchipelagoSetup, CurrNavmesh, NavmeshGenerating, NavmeshGenerators};
+use crate::debug::{CQ3DebugPlugin};
+use crate::skeleton::EnemySpawnPlugin;
+use crate::ui::UIPlugin;
 
 use bevy::window::CursorGrabMode;
 use bevy::window::CursorOptions;
-use bevy::{input::InputSystems, prelude::*, log::LogPlugin};
+use bevy::{prelude::*, log::LogPlugin};
 use bevy::remote::{RemotePlugin, http::RemoteHttpPlugin};
 
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
-use bevy_landmass::{prelude::*, debug::Landmass3dDebugPlugin};
-
-use bevy_rerecast::{prelude::*};
-use landmass_rerecast::LandmassRerecastPlugin;
+use bevy_landmass::{prelude::*};
 
 pub mod loading_system;
 pub mod player_movement;
@@ -50,14 +43,8 @@ fn main() {
             0xF9 as f32 / 255.0,
             0xFF as f32 / 255.0,
         )))
-        .init_resource::<MovementInput>()
-        .init_resource::<LookInput>()
-        .init_resource::<AssetsLoading>()
-        .init_resource::<GameScenes>()
-        .init_resource::<NavmeshGenerators>()
-        .init_resource::<DebugFlags>() // remove this to disable debug stuff completely
         .init_resource::<CurrNavmesh>()
-        .init_gizmo_group::<AgentStateGizmos>()
+        // external plugins
         .add_plugins((
             DefaultPlugins.set(LogPlugin {
                 filter: "moving_around=debug,wgpu_core=warn,wgpu_hal=warn".into(),
@@ -66,22 +53,18 @@ fn main() {
                 ..Default::default()
             }),
             RapierPhysicsPlugin::<NoUserData>::default(),
-            RapierDebugRenderPlugin{
-                enabled: SHOW_COLLIDERS,
-                ..Default::default()
-            },
             RemotePlugin::default(), RemoteHttpPlugin::default(),
-            Landmass3dPlugin::default(),
-            Landmass3dDebugPlugin {
-                draw_on_start: SHOW_NAVMESH,
-                ..Default::default()
-            },
-            LandmassRerecastPlugin::default(),
-            NavmeshPlugins::default(),
-            NavmeshGeneratingBackendPlugin::default(),
-            
         ))
         .insert_state(MyAppState::Loading)
+        // internal plugins
+        .add_plugins((
+            ActorNavigationPlugin,
+            CQ3DebugPlugin,
+            LoadingSystemPlugin,
+            PlayerMovementPlugin,
+            EnemySpawnPlugin,
+            UIPlugin,
+        ))
         .configure_sets(
             PreUpdate,
             (
@@ -103,51 +86,14 @@ fn main() {
                 LoadingSet.run_if(in_state(MyAppState::Loading)),
             ),
         )
-        .add_systems(Startup, (
-            start_loading_assets, 
-            (
-                setup_ui, 
-                setup_debug_ui.run_if(resource_exists::<DebugFlags>)
-            ).chain(),
-        ))
-        .add_systems(OnExit(MyAppState::Loading),
-         (
+        .add_systems(OnExit(MyAppState::Loading), (
             spawn_level_map, 
-            (
-                generate_navmesh, 
-                setup_archipelago, 
-                setup_player,
-                skeleton::load_animations,
-                skeleton::spawn,
-            ).chain()
+            setup_player.after(ArchipelagoSetup),
         )
         )
-        .add_systems(
-            PreUpdate,
-            ((handle_input, handle_debug_input.run_if(resource_exists::<DebugFlags>), player_movement)
-                .chain()
-                .after(InputSystems)
-                .in_set(GameplaySet),),
-        )
-        .add_systems(
-            Update,
-            (
-                (
-                    draw_agent_state_gizmos,
-                    update_gizmo_configs,
-                    player_look, 
-                    update_ui, 
-                    update_debug_ui.run_if(resource_exists::<DebugFlags>),
-                    (
-                        skeleton::setup_animations_once_loaded,
-                        skeleton::update_skellys,
-                    ).chain(),
-                    grab_mouse,
-                ).in_set(GameplaySet),
-                (checks_assets_loaded).in_set(LoadingSet),
-            ),
-        )
-        // .add_systems(FixedUpdate, ((player_movement).in_set(GameplaySet),))
+        .add_systems(Update, (
+            grab_mouse.in_set(GameplaySet),
+        ))
         .run();
 }
 

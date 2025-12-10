@@ -1,12 +1,36 @@
 use bevy::{prelude::*};
 
-use bevy_landmass::{Archipelago3d, ArchipelagoOptions, ArchipelagoRef3d, FromAgentRadius, Island, PointSampleDistance3d};
-use landmass_rerecast::{Island3dBundle, NavMeshHandle3d};
+use bevy_landmass::{Archipelago3d, ArchipelagoOptions, ArchipelagoRef3d, FromAgentRadius, Island, Landmass3dPlugin, PointSampleDistance3d};
+use landmass_rerecast::{Island3dBundle, LandmassRerecastPlugin, NavMeshHandle3d};
 
 use bevy_rerecast::{Navmesh, generator::NavmeshGenerator,NavmeshSettings};
 use bevy_rerecast::rerecast::TriMesh;
-use bevy_rerecast::{NavmeshApp as _, TriMeshFromBevyMesh};
+use bevy_rerecast::{NavmeshApp as _, NavmeshPlugins, TriMeshFromBevyMesh};
 use crate::player_movement;
+
+// For systems that should only run when app is in game
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ArchipelagoSetup;
+
+pub struct ActorNavigationPlugin;
+impl Plugin for ActorNavigationPlugin {
+    fn build(&self, app: &mut App) {
+        app
+        .init_resource::<NavmeshGenerators>()
+        .init_resource::<CurrNavmesh>()
+        .add_plugins((
+            NavmeshGeneratingBackendPlugin::default(),
+            Landmass3dPlugin::default(),
+            LandmassRerecastPlugin::default(),
+            NavmeshPlugins::default(),
+        ))
+        .add_systems(OnExit(super::MyAppState::Loading),
+            (generate_navmesh, setup_archipelago).chain().after(super::spawn_level_map).in_set(ArchipelagoSetup)
+        );
+        
+    }
+}
+
 
 // a list of mesh handles for the meshes we want to generate the navmesh with.
 #[derive(Default, Resource)]

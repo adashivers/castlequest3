@@ -1,7 +1,7 @@
 
 
 use super::Player;
-use bevy::{input::mouse::MouseMotion, prelude::*};
+use bevy::{input::{InputSystems, mouse::MouseMotion}, prelude::*};
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*,};
 
 
@@ -12,6 +12,24 @@ pub const MOVEMENT_SPEED: f32 = 8.0;
 pub const JUMP_SPEED: f32 = 0.0; // TODO: remove jumping for real
 
 pub fn highest_point() -> f32 { JUMP_SPEED * JUMP_SPEED / (-2.0 * GRAVITY) } // the max height this player can gain with a jump
+
+pub struct PlayerMovementPlugin;
+impl Plugin for PlayerMovementPlugin {
+    fn build(&self, app: &mut App) {
+        app
+        .init_resource::<MovementInput>()
+        .init_resource::<LookInput>()
+        .add_systems(PreUpdate, 
+            (handle_input, player_movement)
+            .chain()
+            .after(InputSystems)
+            .in_set(super::GameplaySet)
+        )
+        .add_systems(Update,
+            player_look.in_set(super::GameplaySet)
+        );
+    }
+}
 
 
 /// Keyboard input vector
