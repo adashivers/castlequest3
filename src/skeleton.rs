@@ -37,6 +37,7 @@ impl Plugin for EnemySpawnPlugin {
 }
 
 // -- animation setup --
+// TODO: move to own file
 
 #[derive(Resource)]
 pub struct Animations { // taken from bevy example animations
@@ -99,11 +100,11 @@ pub fn link_animations(
 ) {
 	
 	for (anim_player_entity, mut player) in &mut players {
-		debug!("linking animation players");
 		let top_entity = get_top_parent(anim_player_entity, &all_entities_with_parents_query);
         if animation_link_query.get(top_entity).is_ok() {
             warn!("Problem with multiple animation players for the same top parent");
         } else {
+			debug!("inserting animation link to entity {}", top_entity.row().index());
 			commands.entity(top_entity).insert(AnimationEntityLink(anim_player_entity.clone()));
 			//debug!("Top entity:\n{:#?}", world.inspect_entity(top_entity).unwrap().map(|info| info.name()).collect::<Vec<_>>());
 		}
