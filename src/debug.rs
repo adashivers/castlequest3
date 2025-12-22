@@ -11,12 +11,13 @@ use crate::{player_movement::handle_input, ui::{BrosOskonFont}};
 // edit to change initial flags for debug
 pub const SHOW_COLLIDERS: bool = false;
 pub const SHOW_NAVMESH: bool = true;
+pub const SHOW_BEHAVIORTREE_LOGS: bool = true;
 
 /// Debug input vector. Debug systems should only run if this resource exists.
 #[derive(Resource)]
 pub struct DebugFlags {
     pub show_colliders: bool,
-    pub show_navmesh: bool
+    pub show_navmesh: bool,
 }
 
 impl Default for DebugFlags {

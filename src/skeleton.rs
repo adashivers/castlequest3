@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use bevy::prelude::*;
+use bevy_behave::prelude::*;
 use bevy_rapier3d::prelude::{CharacterAutostep, CharacterLength, Collider, KinematicCharacterController};
 use bevy_landmass::{
 	Agent3dBundle, AgentDesiredVelocity3d, AgentSettings, AgentState, AgentTarget3d, ArchipelagoRef3d, Character, Island, TargetReachedCondition, coords::ThreeD
@@ -16,7 +17,6 @@ impl Plugin for EnemySpawnPlugin {
 		.add_systems(OnExit(super::MyAppState::Loading), 
 			(
 				load_animations,
-				spawn,
 			).chain().after(super::setup_player)
 		)
 		.add_systems(Update, 
@@ -114,120 +114,181 @@ pub fn link_animations(
 	}
 }
 
+#[derive(Bundle)]
+pub struct ActorBundle {
+	actor_type: ActorType,
+	health: Health,
+	transform: Transform,
+	visibility: Visibility,
+	collider: Collider,
+	character_controller: KinematicCharacterController,
+}
+
+impl Default for ActorBundle {
+	fn default() -> Self {
+		Self { 
+			actor_type: ActorType::Enemy,
+			health: Health { hp: 100 }, 
+			transform: Transform::default(), 
+			visibility: Visibility::Visible,
+			collider: Collider::round_cylinder(1.0, 0.1, 0.0),
+			character_controller: KinematicCharacterController {
+				custom_mass: Some(5.0),
+				up: Vec3::Y,
+				offset: CharacterLength::Absolute(0.01),
+				slide: true,
+				autostep: Some(CharacterAutostep {
+					max_height: CharacterLength::Relative(0.3),
+					min_width: CharacterLength::Relative(0.5),
+					include_dynamic_bodies: false,
+				}),
+				// Don’t allow climbing slopes larger than 45 degrees.
+				max_slope_climb_angle: 45.0_f32.to_radians(),
+				// Automatically slide down on slopes smaller than 30 degrees.
+				min_slope_slide_angle: 30.0_f32.to_radians(),
+				apply_impulse_to_dynamic_bodies: false,
+				snap_to_ground: Some(CharacterLength::Absolute(5.0)),
+				..default()
+			},
+		}
+	}
+}
+
+#[derive(Component, Default, Clone, Copy)]
+enum ActorType {
+	#[default]
+	Enemy,
+	Player,
+	Neutral
+}
+
+
+
+pub struct ActorSpawnerTemplate {
+	actor_type: ActorType,
+	half_height: f32,
+	radius: f32,
+	visibility: bool,
+	max_health: u32,
+	agent_settings: AgentSettings,
+	target_reached_condition: TargetReachedCondition,
+	model_path: String,
+	actor_ai: Tree<Behave>,
+}
+
+#[derive(Component)]
+pub struct ActorSpawner {
+	positions: Vec<Vec3>,
+	template: ActorSpawnerTemplate,
+	spawn_on_add: bool,
+}
+impl ActorSpawner {
+	pub fn new(positions: Vec<Vec3>, template: ActorSpawnerTemplate, spawn_on_add: bool) -> ActorSpawner {
+		ActorSpawner {
+			positions, template, spawn_on_add
+		}
+	}
+
+	pub fn spawn(&self, commands: &mut Commands, asset_server: &Res<AssetServer>, archipelago_ref: &Entity,) {
+		self.positions.iter().for_each(|&pos| 
+			{ 
+				commands.spawn((
+					ActorBundle {
+						actor_type: self.template.actor_type.clone(),
+						visibility: match self.template.visibility {
+							true => Visibility::Visible,
+							false => Visibility::Hidden,
+						},
+						health: Health { hp: self.template.max_health },
+						transform: Transform::from_translation(pos),
+						collider: Collider::round_cylinder(self.template.half_height, self.template.radius, 0.0),
+						..default()
+					},
+					children![
+						(
+							// navmesh agent
+							Transform::from_xyz(0.0, -(self.template.half_height + self.template.radius), 0.0),
+							BehaveTree::new(self.template.actor_ai.clone()),
+							Agent3dBundle {
+								agent: default(),
+								settings: AgentSettings { 
+									radius: self.template.agent_settings.radius, 
+									desired_speed: self.template.agent_settings.desired_speed, 
+									max_speed: self.template.agent_settings.max_speed,
+								},
+								archipelago_ref: ArchipelagoRef3d::new(*archipelago_ref),
+							},
+							AgentTarget3d::None,
+							self.template.target_reached_condition,
+							LastState(AgentState::Idle),
+						),
+						(
+							// scene
+							Transform::from_xyz(0.0, -self.template.half_height, 0.0),
+							SceneRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset(self.template.model_path.clone()))),
+						)
+					]
+				)); 
+			}
+		);
+	}
+}
+
+pub fn use_added_spawners(
+	mut commands: Commands,
+	asset_server: Res<AssetServer>,
+	island_archipelago_ref: Query<&mut ArchipelagoRef3d, With<Island>>,
+	added_spawners: Query<&ActorSpawner, Added<ActorSpawner>>
+) {
+	let arch_ref = island_archipelago_ref.single().expect("Cound not find archipelago reference on island").entity;
+	for spawner in &added_spawners {
+		if spawner.spawn_on_add {
+			spawner.spawn(&mut commands, &asset_server, &arch_ref);
+		}
+		
+	}
+}
+
 
 #[derive(Component, Default)]
 pub struct Skeleton;
 #[derive(Component, Default)]
 pub struct LastState(AgentState);
 
-pub fn spawn(
-  mut commands: Commands,
-  mut materials: ResMut<Assets<StandardMaterial>>,
-  asset_server: Res<AssetServer>,
-  island_archipelago_ref: Query<&mut ArchipelagoRef3d, With<Island>>,
-  player_query: Query<(Entity, &Character<ThreeD>)>,
+pub fn update_enemies(
+	mut actor_query: Query<(&ActorType, &mut KinematicCharacterController, &mut Transform, &AnimationEntityLink), With<ActorType>>,
+	mut agent_query: Query<(&ChildOf, &AgentState, &AgentDesiredVelocity3d, &mut LastState)>,
+	mut animation_query: Query<(&mut AnimationPlayer, &mut AnimationTransitions)>,
 ) {
-  let player_entity = player_query.single().expect("Could not find player while spawning enemy").0;
+	for (
+		childof, 
+		agent_state, 
+		desired_velocity, 
+		mut last_state
+	) in &mut agent_query {
+		if let Ok((
+			actor_type,
+			mut controller,
+			mut transform,
+			animation_link,
+		)) = actor_query.get_mut(childof.parent()) {
 
-  commands.spawn((
-	Skeleton::default(),
-	Health { hp: 100 },
-	Transform::from_xyz(-37.0, 3.7, -15.0),
-	Visibility::default(),
-	Collider::round_cylinder(1.0, 0.1, 0.0),
-	MeshMaterial3d(materials.add(StandardMaterial::default())),
-	KinematicCharacterController {
-		custom_mass: Some(5.0),
-		up: Vec3::Y,
-		offset: CharacterLength::Absolute(0.01),
-		slide: true,
-		autostep: Some(CharacterAutostep {
-			max_height: CharacterLength::Relative(0.3),
-			min_width: CharacterLength::Relative(0.5),
-			include_dynamic_bodies: false,
-		}),
-		// Don’t allow climbing slopes larger than 45 degrees.
-		max_slope_climb_angle: 45.0_f32.to_radians(),
-		// Automatically slide down on slopes smaller than 30 degrees.
-		min_slope_slide_angle: 30.0_f32.to_radians(),
-		apply_impulse_to_dynamic_bodies: true,
-		snap_to_ground: Some(CharacterLength::Absolute(5.0)),
-		..default()
-	},
-	children![
-		(
-			// navmesh agent
-			Transform::from_xyz(0.0, -1.1, 0.0),
-			Agent3dBundle {
-				agent: default(),
-				settings: AgentSettings {
-					radius: 0.3,
-					desired_speed: 1.0,
-					max_speed: 5.0,
-				},
-				archipelago_ref: ArchipelagoRef3d::new(island_archipelago_ref.single().expect("Cound not find archipelago reference on island").entity),
-			},
-			AgentTarget3d::Entity(player_entity),
-			TargetReachedCondition::Distance(Some(2.0)),
-			LastState(AgentState::Idle),
-		),
-		(
-			// scene
-			Transform::from_xyz(0.0, -1.0, 0.0),
-			SceneRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset("models/skeleton.glb"))),
-		)
-	]
-  ));
+			// if not an enemy, skip over this actor
+			match actor_type {
+				ActorType::Enemy => {},
+				_ => {continue}
+			}
 
-  commands.spawn((
-	Skeleton::default(),
-	Health { hp: 100 },
-	Transform::from_xyz(-35.0, 3.7, -10.0),
-	Visibility::default(),
-	Collider::round_cylinder(1.0, 0.1, 0.0),
-	MeshMaterial3d(materials.add(StandardMaterial::default())),
-	KinematicCharacterController {
-		custom_mass: Some(5.0),
-		up: Vec3::Y,
-		offset: CharacterLength::Absolute(0.01),
-		slide: true,
-		autostep: Some(CharacterAutostep {
-			max_height: CharacterLength::Relative(0.3),
-			min_width: CharacterLength::Relative(0.5),
-			include_dynamic_bodies: false,
-		}),
-		// Don’t allow climbing slopes larger than 45 degrees.
-		max_slope_climb_angle: 45.0_f32.to_radians(),
-		// Automatically slide down on slopes smaller than 30 degrees.
-		min_slope_slide_angle: 30.0_f32.to_radians(),
-		apply_impulse_to_dynamic_bodies: true,
-		snap_to_ground: Some(CharacterLength::Absolute(5.0)),
-		..default()
-	},
-	children![
-		(
-			// navmesh agent
-			Transform::from_xyz(0.0, -1.1, 0.0),
-			Agent3dBundle {
-				agent: default(),
-				settings: AgentSettings {
-					radius: 0.3,
-					desired_speed: 1.0,
-					max_speed: 5.0,
-				},
-				archipelago_ref: ArchipelagoRef3d::new(island_archipelago_ref.single().expect("Cound not find archipelago reference on island").entity),
-			},
-			AgentTarget3d::Entity(player_entity),
-			TargetReachedCondition::Distance(Some(2.0)),
-			LastState(AgentState::Idle),
-		),
-		(
-			// scene
-			Transform::from_xyz(0.0, -1.0, 0.0),
-			SceneRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset("models/skeleton.glb"))),
-		)
-	]
-  ));
+			let (
+				mut animation_player, 
+				mut animation_transitions
+			) = animation_query.get_mut(animation_link.0).unwrap();
+
+			// TODO: add behavior tree action here
+		}
+
+
+	}
 }
 
 pub fn update_skellys(

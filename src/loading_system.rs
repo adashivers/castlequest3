@@ -38,7 +38,7 @@ pub fn start_loading_assets(
     mut scenes: ResMut<GameScenes>,
 ) {
     debug!("Loading assets...");
-
+    // TODO: change this to get a scene manager
     let castle_navmesh_gen_mesh: Handle<Mesh> = asset_server.load("models/dungeon.glb#Mesh0/Primitive0");
     let castle_scene: Handle<Scene> = asset_server.load(
         GltfAssetLabel::Scene(0).from_asset("models/dungeontex.glb"),
