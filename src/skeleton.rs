@@ -308,7 +308,7 @@ pub fn use_actor_spawners(
 	}
 }
 
-// Load a skeleton. This is mainly for testing the game right now.
+// Load a spawner that spawns a skeleton in the northern hallway. This is mainly for testing the game right now.
 pub fn load_actor_spawners(mut commands: Commands) {
 	commands.spawn(ActorSpawner::new(
 		vec![Vec3::new(-35.0, 3.7, -10.0)],
