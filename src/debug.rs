@@ -2,6 +2,7 @@ use bevy::{
     prelude::*,
     color::palettes::css::*,
 };
+use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use super::Player;
 use bevy_landmass::{AgentState, debug::{EnableLandmassDebug, Landmass3dDebugPlugin}};
 use bevy_rapier3d::render::{DebugRenderContext, RapierDebugRenderPlugin};
@@ -44,6 +45,8 @@ impl Plugin for CQ3DebugPlugin {
                 draw_on_start: SHOW_NAVMESH,
                 ..Default::default()
             },
+            EguiPlugin::default(),
+            WorldInspectorPlugin::new(),
         ))
         .add_systems(Startup, 
             setup_debug_ui

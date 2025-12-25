@@ -119,6 +119,7 @@ pub fn setup_player(
 
     commands
         .spawn((
+            Name::new("Player"),
             Player::default(),
             Health { hp: 90 },
             Transform::from_xyz(0.0, 5.0, 0.0),
@@ -190,6 +191,7 @@ pub fn spawn_level_map(
             match collider_option {
                 Some(collider) => {
                     commands.spawn((
+                        Name::new("Level"),
                         Mesh3d(gen_mesh_handle.clone()),
                         MeshMaterial3d(materials.add(Color::BLACK)),
                         Transform::from_xyz(0.0, 0.0, 0.0),
@@ -218,12 +220,11 @@ pub fn spawn_level_map(
 // copied almost directly from bevy example mouse_grab.
 fn grab_mouse(
     mut cursor_options_q: Query<&mut CursorOptions>,
-    mouse: Res<ButtonInput<MouseButton>>,
     key: Res<ButtonInput<KeyCode>>,
 ) {
     let mut cursor_options = cursor_options_q.single_mut().unwrap();
 
-    if mouse.just_pressed(MouseButton::Left) {
+    if key.just_pressed(KeyCode::Space) {
         cursor_options.visible = false;
         cursor_options.grab_mode = CursorGrabMode::Locked;
     }

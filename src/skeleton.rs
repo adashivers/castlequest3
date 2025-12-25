@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use bevy::{camera::visibility::NoFrustumCulling, prelude::*};
+use bevy::{camera::visibility::NoFrustumCulling, prelude::*, scene::SceneInstanceReady};
 use bevy_behave::prelude::*;
 use bevy_mod_skinned_aabb::SkinnedAabbPlugin;
 use bevy_rapier3d::{prelude::{CharacterAutostep, CharacterLength, Collider, KinematicCharacterController}};
@@ -100,19 +100,22 @@ pub fn link_animations(
 	mut anim_players: Query<(Entity, &mut AnimationPlayer), Added<AnimationPlayer>>,
 	animation_link_query: Query<&AnimationEntityLink>,
 ) {
-	
+	if !anim_players.is_empty() {
+		debug!("running link animations system");
+	}
 	for (anim_player_entity, mut anim_player) in &mut anim_players {
+
 		let top_entity = get_top_parent(anim_player_entity, &all_entities_with_parents_query);
         if animation_link_query.get(top_entity).is_ok() {
-            warn!("Problem with multiple animation players for the same top parent");
+            warn!("\tProblem with multiple animation players for the same top parent");
         } else {
-			debug!("inserting animation link to entity {}", top_entity.row().index());
+			debug!("\tinserting animation link to entity {}", top_entity.row().index());
 			commands.entity(top_entity).insert(AnimationEntityLink(anim_player_entity.clone()));
 			//debug!("Top entity:\n{:#?}", world.inspect_entity(top_entity).unwrap().map(|info| info.name()).collect::<Vec<_>>());
 		}
 
 		
-		debug!("setting up transitions");
+		debug!("\tsetting up transitions");
 		let mut transitions = AnimationTransitions::new();
 		transitions
             .play(&mut anim_player, animations.animations[0], Duration::ZERO)
@@ -184,6 +187,7 @@ impl Default for ActorBundle {
 // In theory, should be serializable/deserializable. 
 // TODO: add serializability from/to .rom files and rename to something more general like "ActorInfo"
 pub struct ActorSpawnerTemplate {
+	actor_name: String,
 	actor_type: ActorType,
 	half_height: f32,
 	radius: f32,
@@ -220,7 +224,8 @@ impl ActorSpawner {
 		self.positions.iter().for_each(|&pos| 
 			{ 
 				commands
-					.spawn(
+					.spawn((
+						Name::new(self.template.actor_name.clone()),
 						ActorBundle {
 							actor_type: self.template.actor_type.clone(),
 							visibility: match self.template.visibility {
@@ -232,7 +237,7 @@ impl ActorSpawner {
 							collider: Collider::round_cylinder(self.template.half_height, self.template.radius, 0.0),
 							..default()
 						},
-					)
+					))
 					.with_children(|parent| {
 						parent
 							// child entity containing navigation components
@@ -263,7 +268,7 @@ impl ActorSpawner {
 						
 						// child entity containing enemy model
 						let model_scene = asset_server.load(GltfAssetLabel::Scene(0).from_asset(self.template.model_path.clone()));
-
+						
 						parent.spawn((
 							// scene
 							Transform::from_xyz(0.0, -self.template.half_height, 0.0),
@@ -308,6 +313,7 @@ pub fn load_actor_spawners(mut commands: Commands) {
 	commands.spawn(ActorSpawner::new(
 		vec![Vec3::new(-35.0, 3.7, -10.0)],
 		ActorSpawnerTemplate {
+			actor_name: "Skeleton".into(),
 			actor_type: ActorType::Enemy { radius: 100.0 },
 			half_height: 1.0,
 			radius: 0.3,
