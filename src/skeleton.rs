@@ -1,7 +1,8 @@
 use std::time::Duration;
 
-use bevy::prelude::*;
+use bevy::{camera::visibility::NoFrustumCulling, prelude::*};
 use bevy_behave::prelude::*;
+use bevy_mod_skinned_aabb::SkinnedAabbPlugin;
 use bevy_rapier3d::{prelude::{CharacterAutostep, CharacterLength, Collider, KinematicCharacterController}};
 use bevy_landmass::{
 	Agent3dBundle, AgentDesiredVelocity3d, AgentSettings, AgentState, AgentTarget3d, ArchipelagoRef3d, Character, Island, TargetReachedCondition, coords::ThreeD
@@ -15,6 +16,7 @@ pub struct EnemySpawnPlugin;
 impl Plugin for EnemySpawnPlugin {
     fn build(&self, app: &mut App) {
         app
+		.add_plugins(SkinnedAabbPlugin)
 		.add_systems(OnExit(super::MyAppState::Loading), 
 			(
 				//
@@ -95,11 +97,11 @@ pub fn link_animations(
 	mut commands: Commands,
 	animations: Res<Animations>,
 	all_entities_with_parents_query: Query<&ChildOf>,
-	mut players: Query<(Entity, &mut AnimationPlayer), Added<AnimationPlayer>>,
+	mut anim_players: Query<(Entity, &mut AnimationPlayer), Added<AnimationPlayer>>,
 	animation_link_query: Query<&AnimationEntityLink>,
 ) {
 	
-	for (anim_player_entity, mut player) in &mut players {
+	for (anim_player_entity, mut anim_player) in &mut anim_players {
 		let top_entity = get_top_parent(anim_player_entity, &all_entities_with_parents_query);
         if animation_link_query.get(top_entity).is_ok() {
             warn!("Problem with multiple animation players for the same top parent");
@@ -113,7 +115,7 @@ pub fn link_animations(
 		debug!("setting up transitions");
 		let mut transitions = AnimationTransitions::new();
 		transitions
-            .play(&mut player, animations.animations[0], Duration::ZERO)
+            .play(&mut anim_player, animations.animations[0], Duration::ZERO)
             .repeat();
 		commands
 			.entity(anim_player_entity)
@@ -260,10 +262,12 @@ impl ActorSpawner {
 							);
 						
 						// child entity containing enemy model
+						let model_scene = asset_server.load(GltfAssetLabel::Scene(0).from_asset(self.template.model_path.clone()));
+
 						parent.spawn((
 							// scene
 							Transform::from_xyz(0.0, -self.template.half_height, 0.0),
-							SceneRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset(self.template.model_path.clone()))),
+							SceneRoot(model_scene),
 						));
 					}); 
 			}
@@ -325,6 +329,8 @@ pub fn load_actor_spawners(mut commands: Commands) {
 #[derive(Component, Default)]
 pub struct LastState(AgentState);
 
+// WARN: this is a very basic enemy update system for testing purposes only.
+// this should be replaced with a more robust system that uses behavior trees
 pub fn update_enemies(
 	mut actor_query: Query<(&ActorType, &mut KinematicCharacterController, &mut Transform, &AnimationEntityLink), With<ActorType>>,
 	mut agent_query: Query<(&ChildOf, &AgentState, &AgentDesiredVelocity3d, &mut LastState)>,
