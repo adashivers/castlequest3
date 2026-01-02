@@ -1,9 +1,11 @@
+use std::collections::HashMap;
+
 use bevy::ecs::{entity::Entity};
 use bevy::prelude::*;
 use bevy::color::palettes::basic::RED;
 use bevy_behave::prelude::*;
 use bevy_landmass::coords::ThreeD;
-use bevy_landmass::{Agent, AgentDesiredVelocity3d, AgentState, AgentTarget3d, Character};
+use bevy_landmass::{PathStep::Waypoint, Agent, AgentDesiredVelocity3d, AgentState, AgentTarget3d, Archipelago, Character, PointSampleDistance3d};
 use bevy_rapier3d::prelude::KinematicCharacterController;
 use crate::actor::{Player,};
 use crate::debug::{CQ3DebugGizmos, DebugFlags};
@@ -39,14 +41,14 @@ pub fn init_actor_behavior(
         let (tree, agent_target) = match actor_type {
             ActorType::Enemy { radius } => {
                 debug!("setting up entity {}'s agent entity as an enemy", entity.index());
-                let (player_entity, player_children) = player_query.single().unwrap();
+                let (_, player_children) = player_query.single().unwrap();
                 // The navigation mesh Character entity is actually a parent of the top entity that makes up the player. We use this to get it:
                 let player_char_entity = player_children.iter().find(|x| {character_query.get(*x).is_ok()}).unwrap();
                 let tree = behave! {
                         Behave::Forever => {
                             Behave::Fallback => {
                                 Behave::Sequence => {
-                                    // Behave::trigger(CheckEntityInSight { entity_from: entity, entity_to: player_entity, radius: *radius }),
+                                    Behave::trigger(CheckEntityInSight { entity_from: agent_entity, entity_to: player_char_entity, radius: *radius }),
                                     Behave::trigger(MoveTowardsTarget { agent_entity: agent_entity, actor_entity: entity }),
                                 },
                             // Behave::trigger(SwitchToIdling)
@@ -80,52 +82,27 @@ pub struct CheckEntityInSight { pub entity_from: Entity, pub entity_to: Entity, 
 
 pub fn on_check_entity_in_sight(
 	trigger: On<BehaveTrigger<CheckEntityInSight>>, 
-	mut raycast: MeshRayCast,
 	mut commands: Commands, 
-    mut gizmos: Gizmos<CQ3DebugGizmos>,
-	transforms: Query<&GlobalTransform>,
-    child_of: Query<&ChildOf>,
+    archipelago: Query<&Archipelago<ThreeD>>,
+    global_transform: Query<&GlobalTransform>,
 ) {
+    // TODO: this does not work! fix it using the implementation at
+    // https://github.com/andriyDev/landmass/blob/3c12842f7620c60a710e8483a2b152229ef4b00c/crates/landmass/src/agent.rs#L343
 	let ctx = trigger.ctx();
+    let archipelago = archipelago.single().unwrap();
 
-	// get entity info from trigger
-	let entity_from = trigger.inner().entity_from;
-	let entity_to = trigger.inner().entity_to;
-	let vision_radius = trigger.inner().radius;
+    let entity_from_pos = global_transform.get(trigger.inner().entity_from).unwrap().translation();
+    let entity_to_pos = global_transform.get(trigger.inner().entity_to).unwrap().translation();
+    
+    let entity_from_pos_sampled = archipelago.sample_point(entity_from_pos, &archipelago.get_agent_options().point_sample_distance).unwrap();
+    let entity_to_pos_sampled = archipelago.sample_point(entity_to_pos, &archipelago.get_agent_options().point_sample_distance).unwrap();
 
-	//get direction and distance vectors
-	let entity_from_pos = transforms.get(entity_from).unwrap().translation();
-	let entity_to_pos = transforms.get(entity_to).unwrap().translation();
-	let dist_to_entity = entity_from_pos - entity_to_pos;
-	let towards_entity = Dir3::new(dist_to_entity).unwrap();
-
-	// cast ray
-	let ray = Ray3d::new(entity_from_pos, towards_entity);
-	let settings = MeshRayCastSettings {
-		visibility: RayCastVisibility::Any,
-		filter: &|e| e.index() != entity_from.index(), // dont collide with the entity sending the ray
-		..default()
-	};
-
-	// check if first hit is the entity we seek
-	match raycast.cast_ray(ray, &settings).first() {
-		Some((first_hit_entity, hit)) => {
-            gizmos.line(entity_from_pos, hit.point, RED);
-            gizmos.sphere(entity_from_pos, 3.0, RED);
-            gizmos.sphere(hit.point, 3.0, RED);
-            
-            let parent_entity_to = get_top_parent(entity_to, &child_of);
-            let parent_hit_entity = get_top_parent(*first_hit_entity, &child_of);
-            debug!("hit info\n\thit entity: {}\ttarget entity:{}\n\thit distance:{}\tvision radius:{}\n\thit point: {}", first_hit_entity.index(), entity_to.index(), hit.distance, vision_radius, hit.point);
-			if parent_entity_to.index() == parent_hit_entity.index() && hit.distance <= vision_radius {
-                debug!("hit target");
-				commands.trigger(ctx.success());
-			} else {
-				commands.trigger(ctx.failure());
-			}
-		},
-		None => { debug!("no hit"); commands.trigger(ctx.failure()); }
-	}
+    let path = archipelago.find_path(&entity_from_pos_sampled, &entity_to_pos_sampled, &HashMap::new(), bevy_landmass::PermittedAnimationLinks::All).unwrap();
+    if path.len() == 1 {
+        commands.trigger(ctx.success());
+    } else {
+        commands.trigger(ctx.failure());
+    }
 }
 
 #[derive(Clone)]
