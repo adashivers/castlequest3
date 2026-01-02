@@ -1,5 +1,7 @@
 use bevy::prelude::*;
+use bevy_rapier3d::{prelude::{CharacterAutostep, CharacterLength, Collider, KinematicCharacterController}};
 use bevy_mod_skinned_aabb::SkinnedAabbPlugin;
+
 use animations::*;
 use spawner::*;
 use update::*;
@@ -55,3 +57,57 @@ impl Default for Health {
 
 #[derive(Component, Default)]
 pub struct Player;
+
+// Entities with ActorBundles are considered "actors," which could be enemies, players, NPCs etc.
+
+#[derive(Component, Default, Clone, Copy, PartialEq)]
+// The type of an actor. 
+// Enemies take in a radius parameter which defines their line of sight.
+// TODO: Use this enum (and this system in general) for setting up the player.
+pub enum ActorType {
+	Enemy{radius: f32},
+	Player,
+	#[default]
+	Neutral
+}
+
+#[derive(Bundle)]
+// A bundle containing all the components necessary to have an actor.
+pub struct ActorBundle {
+	actor_type: ActorType,
+	health: Health,
+	transform: Transform,
+	visibility: Visibility,
+	collider: Collider,
+	character_controller: KinematicCharacterController,
+}
+
+impl Default for ActorBundle {
+	fn default() -> Self {
+		Self { 
+			actor_type: ActorType::Enemy { radius: 100.0 },
+			health: Health { hp: 100 }, 
+			transform: Transform::default(), 
+			visibility: Visibility::Visible,
+			collider: Collider::round_cylinder(1.0, 0.1, 0.0),
+			character_controller: KinematicCharacterController {
+				custom_mass: Some(5.0),
+				up: Vec3::Y,
+				offset: CharacterLength::Absolute(0.01),
+				slide: true,
+				autostep: Some(CharacterAutostep {
+					max_height: CharacterLength::Relative(0.3),
+					min_width: CharacterLength::Relative(0.5),
+					include_dynamic_bodies: false,
+				}),
+				// Don’t allow climbing slopes larger than 45 degrees.
+				max_slope_climb_angle: 45.0_f32.to_radians(),
+				// Automatically slide down on slopes smaller than 30 degrees.
+				min_slope_slide_angle: 30.0_f32.to_radians(),
+				apply_impulse_to_dynamic_bodies: false,
+				snap_to_ground: Some(CharacterLength::Absolute(5.0)),
+				..default()
+			},
+		}
+	}
+}

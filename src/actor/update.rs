@@ -7,7 +7,6 @@ use bevy_landmass::{
 	AgentState, 
 };
 
-use crate::actor::spawner::ActorType;
 use crate::actor::*;
 
 #[derive(Component, Default)]
@@ -60,9 +59,6 @@ pub fn update_enemies(
 				}
 			};
 
-
-
-
 			// set animation depending on agent state
 			if *agent_state != last_state.0 {
 				debug!("skeleton state: {:?}", agent_state);
@@ -109,6 +105,7 @@ pub fn update_enemies(
 			let mut next_velocity: Vec3 = Vec3::new(0.0, -0.1, 0.0); // slight downward tilt so that the collider snaps to the ground.
 			next_velocity += desired_velocity.velocity(); // add desired velocity
 			controller.translation = Some(next_velocity * time.delta_secs());
+
 		}
 
 
@@ -116,7 +113,7 @@ pub fn update_enemies(
 }
 
 #[derive(Clone)]
-pub struct CheckEntityInSight { entity_from: Entity, entity_to: Entity }
+pub struct CheckEntityInSight { pub entity_from: Entity, pub entity_to: Entity }
 
 
 pub fn on_check_entity_in_sight(
@@ -159,7 +156,7 @@ pub fn on_check_entity_in_sight(
 }
 
 #[derive(Clone)]
-pub struct MoveTowardsTarget { agent_entity: Entity, actor_entity: Entity }
+pub struct MoveTowardsTarget { pub agent_entity: Entity, pub actor_entity: Entity }
 
 pub fn on_move_towards_target(
 	mut commands: Commands,
