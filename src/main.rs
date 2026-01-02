@@ -184,9 +184,9 @@ pub fn spawn_level_map(
             match collider_option {
                 Some(collider) => {
                     commands.spawn((
-                        Name::new("Level"),
+                        Name::new("Level Collider"),
                         Mesh3d(gen_mesh_handle.clone()),
-                        MeshMaterial3d(materials.add(Color::BLACK)),
+                        MeshMaterial3d(materials.add(Color::BLACK)), // adding for debug purposes
                         Transform::from_xyz(0.0, 0.0, 0.0),
                         Visibility::Hidden,
                         NavmeshGenerating,
@@ -203,7 +203,7 @@ pub fn spawn_level_map(
     scenes.0
         .iter()
         .for_each(|scene| {
-            commands.spawn(SceneRoot(scene.clone()));
+            commands.spawn((Name::new("Scene"), SceneRoot(scene.clone())));
         });
     
 }
