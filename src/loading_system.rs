@@ -1,4 +1,4 @@
-use crate::actor_navigation::NavmeshGenerators;
+use crate::actor::navigation::NavmeshGenerators;
 
 use super::MyAppState;
 // use crate::actor_navigation::CurrNavmesh;

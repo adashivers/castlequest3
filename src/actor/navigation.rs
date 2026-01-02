@@ -7,6 +7,7 @@ use bevy_rerecast::{Navmesh, generator::NavmeshGenerator,NavmeshSettings};
 use bevy_rerecast::rerecast::TriMesh;
 use bevy_rerecast::{NavmeshApp as _, NavmeshPlugins, TriMeshFromBevyMesh};
 use crate::player_movement;
+use crate::{MyAppState, spawn_level_map};
 
 // For systems that should only run when app is in game
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -24,8 +25,8 @@ impl Plugin for ActorNavigationPlugin {
             LandmassRerecastPlugin::default(),
             NavmeshPlugins::default(),
         ))
-        .add_systems(OnExit(super::MyAppState::Loading),
-            (generate_navmesh, setup_archipelago).chain().after(super::spawn_level_map).in_set(ArchipelagoSetup)
+        .add_systems(OnExit(MyAppState::Loading),
+            (generate_navmesh, setup_archipelago).chain().after(spawn_level_map).in_set(ArchipelagoSetup)
         );
         
     }

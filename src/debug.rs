@@ -3,11 +3,10 @@ use bevy::{
     color::palettes::css::*,
 };
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
-use super::Player;
 use bevy_landmass::{AgentState, debug::{EnableLandmassDebug, Landmass3dDebugPlugin}};
 use bevy_rapier3d::render::{DebugRenderContext, RapierDebugRenderPlugin};
 use crate::{player_movement::handle_input, ui::{BrosOskonFont}};
-
+use crate::actor::Player;
 
 // edit to change initial flags for debug
 pub const SHOW_COLLIDERS: bool = false;

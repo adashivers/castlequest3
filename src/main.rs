@@ -1,9 +1,9 @@
 use std::fmt::Debug;
 use crate::loading_system::{GameScenes, LoadingSystemPlugin};
 use crate::player_movement::PlayerMovementPlugin;
-use crate::actor_navigation::{ActorNavigationPlugin, ArchipelagoSetup, NavmeshGenerating, NavmeshGenerators};
+use crate::actor::navigation::{ArchipelagoSetup, NavmeshGenerating, NavmeshGenerators};
 use crate::debug::{CQ3DebugPlugin};
-use crate::skeleton::EnemySpawnPlugin;
+use crate::actor::{EnemySpawnPlugin, Player, Health};
 use crate::ui::UIPlugin;
 
 use bevy::window::CursorGrabMode;
@@ -17,9 +17,8 @@ use bevy_landmass::{prelude::*};
 pub mod loading_system;
 pub mod player_movement;
 pub mod ui;
-pub mod actor_navigation;
 pub mod debug;
-pub mod skeleton;
+pub mod actor;
 
 // States of the app in general. Could become more complicated in the future
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
@@ -57,7 +56,6 @@ fn main() {
         .insert_state(MyAppState::Loading)
         // internal plugins
         .add_plugins((
-            ActorNavigationPlugin,
             CQ3DebugPlugin,
             LoadingSystemPlugin,
             PlayerMovementPlugin,
@@ -95,20 +93,6 @@ fn main() {
         ))
         .run();
 }
-
-#[derive(Component)]
-pub struct Health {
-    hp: u32,
-}
-
-impl Default for Health {
-    fn default() -> Self {
-        Health { hp: 100 }
-    }
-}
-
-#[derive(Component, Default)]
-pub struct Player;
 
 pub fn setup_player(
     mut commands: Commands,
