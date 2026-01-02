@@ -10,6 +10,7 @@ use bevy::window::CursorGrabMode;
 use bevy::window::CursorOptions;
 use bevy::{prelude::*, log::LogPlugin};
 use bevy::remote::{RemotePlugin, http::RemoteHttpPlugin};
+use bevy::color::palettes::basic::GRAY;
 
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
 use bevy_landmass::{prelude::*};
@@ -19,6 +20,7 @@ pub mod player_movement;
 pub mod ui;
 pub mod debug;
 pub mod actor;
+pub mod utils;
 
 // States of the app in general. Could become more complicated in the future
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
@@ -97,6 +99,8 @@ fn main() {
 pub fn setup_player(
     mut commands: Commands,
     island_archipelago_ref: Query<&mut ArchipelagoRef3d, With<Island>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>
 ) {
     const FOV: f32 = f32::to_radians(60.0);
     let archipelago_ref = ArchipelagoRef3d::new(island_archipelago_ref.single().expect("Cound not find archipelago reference on island").entity);
@@ -109,6 +113,11 @@ pub fn setup_player(
             Transform::from_xyz(0.0, 5.0, 0.0),
             Visibility::default(),
             Collider::round_cylinder(0.7, 0.1, 0.0),
+            Mesh3d(meshes.add(Cylinder::new(0.1, 1.4))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: GRAY.into(),
+                ..default()
+            })),
             KinematicCharacterController {
                 custom_mass: Some(5.0),
                 up: Vec3::Y,

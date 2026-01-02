@@ -1,17 +1,18 @@
-use bevy::prelude::*;
+use bevy::{prelude::*};
+use bevy_behave::prelude::BehavePlugin;
 use bevy_rapier3d::{prelude::{CharacterAutostep, CharacterLength, Collider, KinematicCharacterController}};
 use bevy_mod_skinned_aabb::SkinnedAabbPlugin;
 
 use animations::*;
 use spawner::*;
-use update::*;
 use navigation::*;
+use behavior::*;
 
 const SKELETON_PATH: &str = "models/skeleton.glb";
 pub mod animations;
 pub mod spawner;
-pub mod update;
 pub mod navigation;
+mod behavior;
 
 // -- PLUGIN --
 pub struct EnemySpawnPlugin;
@@ -23,7 +24,10 @@ impl Plugin for EnemySpawnPlugin {
 			// apparently there is a PR for this in Bevy 0.18!
 			SkinnedAabbPlugin,
 			ActorNavigationPlugin,
+			BehavePlugin::default(),
 		)) 
+		.add_observer(on_check_entity_in_sight)
+		.add_observer(on_move_towards_target)
 		.add_systems(OnExit(super::MyAppState::Loading), 
 			(
 				load_animations.after(super::setup_player),
@@ -33,11 +37,12 @@ impl Plugin for EnemySpawnPlugin {
 		.add_systems(Update, (
 				(
 					link_animations,
-					update_enemies,
+					init_actor_behavior,
 				)
 				.chain()
 				.after(crate::ui::update_ui),
 				use_actor_spawners,
+				
 			).in_set(super::GameplaySet)
 		);
 		

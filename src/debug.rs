@@ -10,7 +10,7 @@ use crate::actor::Player;
 
 // edit to change initial flags for debug
 pub const SHOW_COLLIDERS: bool = false;
-pub const SHOW_NAVMESH: bool = true;
+pub const SHOW_NAVMESH: bool = false;
 pub const SHOW_BEHAVIORTREE_LOGS: bool = true;
 
 /// Debug input vector. Debug systems should only run if this resource exists.
@@ -18,6 +18,7 @@ pub const SHOW_BEHAVIORTREE_LOGS: bool = true;
 pub struct DebugFlags {
     pub show_colliders: bool,
     pub show_navmesh: bool,
+    pub actor_behavior_tree_logs: bool,
 }
 
 impl Default for DebugFlags {
@@ -25,6 +26,7 @@ impl Default for DebugFlags {
         DebugFlags { 
             show_colliders: SHOW_COLLIDERS,
             show_navmesh: SHOW_NAVMESH,
+            actor_behavior_tree_logs: SHOW_BEHAVIORTREE_LOGS,
         }
     }
 }
@@ -34,7 +36,7 @@ impl Plugin for CQ3DebugPlugin {
     fn build(&self, app: &mut App) {
         app
         .init_resource::<DebugFlags>() // remove this to disable debug stuff completely
-        .init_gizmo_group::<AgentStateGizmos>()
+        .init_gizmo_group::<CQ3DebugGizmos>()
         .add_plugins((
             RapierDebugRenderPlugin{
                 enabled: SHOW_COLLIDERS,
@@ -60,7 +62,7 @@ impl Plugin for CQ3DebugPlugin {
         )
         .add_systems(Update,
             (
-                (draw_agent_state_gizmos, update_gizmo_configs,).chain().before(crate::player_movement::player_look),
+                (update_gizmo_configs,).chain().before(crate::player_movement::player_look),
                 update_debug_ui.run_if(resource_exists::<DebugFlags>).after(crate::ui::update_ui)
             ).in_set(super::GameplaySet)
         );
@@ -69,10 +71,10 @@ impl Plugin for CQ3DebugPlugin {
 
 
 #[derive(Default, Reflect, GizmoConfigGroup)]
-pub struct AgentStateGizmos; // Gizmos showing agent state
+pub struct CQ3DebugGizmos; // Gizmos showing agent state
 
 pub fn draw_agent_state_gizmos(
-    mut agent_gizmos: Gizmos<AgentStateGizmos>,
+    mut agent_gizmos: Gizmos<CQ3DebugGizmos>,
     agent_query: Query<(&AgentState, &GlobalTransform)>,
 ) {
     agent_query
@@ -98,7 +100,7 @@ pub fn update_gizmo_configs(
     mut config_store: ResMut<GizmoConfigStore>,
     debug_flags: Option<Res<DebugFlags>>
 ) {
-    let (config, _) = config_store.config_mut::<AgentStateGizmos>();
+    let (config, _) = config_store.config_mut::<CQ3DebugGizmos>();
     match debug_flags {
         Some(flags) => {
             config.enabled = flags.show_navmesh;

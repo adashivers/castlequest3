@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_behave::prelude::*;
 use bevy_rapier3d::{prelude::{Collider,}};
 use bevy_landmass::{
-	Agent3dBundle, AgentSettings, AgentState, AgentTarget3d, ArchipelagoRef3d, Character, Island, TargetReachedCondition, coords::ThreeD
+	Agent3dBundle, AgentSettings, AgentState, ArchipelagoRef3d, Character, Island, TargetReachedCondition, coords::ThreeD
 };
 use super::{Health, SKELETON_PATH};
 use crate::actor::*;
@@ -21,7 +21,6 @@ pub struct ActorSpawnerTemplate {
 	agent_settings: AgentSettings,
 	target_reached_condition: TargetReachedCondition,
 	model_path: String,
-	actor_ai: Option<Tree<Behave>>,
 }
 
 #[derive(Component)]
@@ -63,6 +62,7 @@ impl ActorSpawner {
 							..default()
 						},
 					))
+
 					.with_children(|parent| {
 						parent
 							// child entity containing navigation components
@@ -78,18 +78,7 @@ impl ActorSpawner {
 									archipelago_ref: ArchipelagoRef3d::new(*archipelago_ref),
 								},
 								self.template.target_reached_condition,
-								LastState(AgentState::Idle),
-							))
-							// insert behavior tree if agent ai is specified in template
-							.insert_if(
-								BehaveTree::new(self.template.actor_ai.clone().unwrap()),
-								|| {self.template.actor_ai.is_some()}
-							)
-							// insert player as agent target if template is an enemy
-							.insert_if(
-								AgentTarget3d::Entity(*player_entity.unwrap()),
-								|| {player_entity.is_some()}
-							);
+							));
 						
 						// child entity containing enemy model
 						let model_scene = asset_server.load(GltfAssetLabel::Scene(0).from_asset(self.template.model_path.clone()));
@@ -147,7 +136,6 @@ pub fn load_actor_spawners(mut commands: Commands) {
 			agent_settings: AgentSettings { radius: 0.3, desired_speed: 1.0, max_speed: 3.0 },
 			target_reached_condition: TargetReachedCondition::Distance(Some(1.0)),
 		    model_path: SKELETON_PATH.to_string(),
-			actor_ai: Some(tree!{Behave::AlwaysFail})
 		},
 		true
 	));
