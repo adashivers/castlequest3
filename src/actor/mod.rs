@@ -27,7 +27,7 @@ impl Plugin for EnemySpawnPlugin {
 			BehavePlugin::default(),
 		)) 
 		.add_observer(on_check_entity_in_sight)
-		.add_observer(on_move_towards_target)
+		.add_observer(on_set_move_towards_target)
 		.add_systems(OnExit(super::MyAppState::Loading), 
 			(
 				load_animations.after(super::setup_player),
@@ -42,9 +42,14 @@ impl Plugin for EnemySpawnPlugin {
 				.chain()
 				.after(crate::ui::update_ui),
 				use_actor_spawners,
+				move_agents,
+				update_agent_animations,
 				
 			).in_set(super::GameplaySet)
-		);
+		)
+		.add_systems(Last, (
+			update_moveagent_laststate,
+		));
 		
     }
 }

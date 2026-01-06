@@ -1,25 +1,35 @@
 use std::collections::HashMap;
+use std::time::Duration;
 
 use bevy::ecs::{entity::Entity};
 use bevy::prelude::*;
-use bevy::color::palettes::basic::RED;
 use bevy_behave::prelude::*;
 use bevy_landmass::coords::ThreeD;
-use bevy_landmass::{PathStep::Waypoint, Agent, AgentDesiredVelocity3d, AgentState, AgentTarget3d, Archipelago, Character, PointSampleDistance3d};
+use bevy_landmass::{AgentDesiredVelocity3d, AgentState, AgentTarget3d, Archipelago, Character, PointSampleDistance3d};
 use bevy_rapier3d::prelude::KinematicCharacterController;
+use crate::actor::animations::*;
 use crate::actor::{Player,};
-use crate::debug::{CQ3DebugGizmos, DebugFlags};
-use crate::utils::get_top_parent;
+use crate::debug::{DebugFlags};
 
 use super::ActorType;
 
+#[derive(Component)]
+#[require(MoveAgentLastTick(false))]
+// Actors will move towards their targets only if this component is on them, and set to true.
+pub struct MoveAgent(pub bool);
+
+#[derive(Component, Default)]
+
+// component holding the state of a moveagent in the last tick.
+// added automatically with MoveAgent, starting at false.
+pub struct MoveAgentLastTick(pub bool);
 
 // This should run every time an actor is added to the scene
 pub fn init_actor_behavior(
     mut commands: Commands,
     player_query: Query<(Entity, &Children), With<Player>>,
     actor_type_query: Query<(Entity, &Children, &ActorType), Added<ActorType>>,
-    agent_query: Query<Entity, With<Agent<ThreeD>>>,
+    agent_query: Query<Entity, With<AgentState>>,
     character_query: Query<Entity, With<Character<ThreeD>>>,
     debug_flags_query: Option<Res<DebugFlags>>,
 ) {
@@ -49,7 +59,7 @@ pub fn init_actor_behavior(
                             Behave::Fallback => {
                                 Behave::Sequence => {
                                     Behave::trigger(CheckEntityInSight { entity_from: agent_entity, entity_to: player_char_entity, radius: *radius }),
-                                    Behave::trigger(MoveTowardsTarget { agent_entity: agent_entity, actor_entity: entity }),
+                                    Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, do_move: true }),
                                 },
                             // Behave::trigger(SwitchToIdling)
                         }
@@ -76,66 +86,150 @@ pub fn init_actor_behavior(
     
 }
 
+pub fn update_agent_animations(
+    actor_query: Query<&AnimationEntityLink, With<ActorType>>,
+    mut animation_query: Query<(&mut AnimationPlayer, &mut AnimationTransitions)>,
+	animations: Res<Animations>,
+    agent_query: Query<(&ChildOf, &MoveAgent, &MoveAgentLastTick)>
+) {
+    for (child_of, move_agent, move_agent_last_tick) in agent_query {
+        let animation_link = actor_query.get(child_of.parent().entity());
+        if animation_link.is_err() { continue };
+        let animation_link = animation_link.unwrap();
+
+        let (
+            mut animation_player, 
+            mut animation_transitions
+        ) = animation_query.get_mut(animation_link.0).unwrap();
+
+        if move_agent.0 != move_agent_last_tick.0 {
+            match move_agent.0 {
+                true => {
+                    animation_transitions
+                        .play(
+                            &mut animation_player, 
+                            animations.animations[2], 
+                            Duration::from_millis(250)
+                        )
+                        .repeat();
+                }
+                false => {
+                    // this is a case by case basis and should be set by the propagator.
+                    // for now i will set this to play idle, but will probably change when we implement attacks
+                    animation_transitions
+                        .play(
+                            &mut animation_player, 
+                            animations.animations[0], 
+                            Duration::from_millis(250)
+                        )
+                        .repeat();
+                }
+            }
+        }
+    }
+}
+
+pub fn update_moveagent_laststate(mut agent_query: Query<(&MoveAgent, &mut MoveAgentLastTick)>) {
+    // updates last state of movable agent at the end of a tick. runs in Last
+    // this is used for setting up the animations
+    for (moveagent, mut moveagent_last) in agent_query.iter_mut() {
+        moveagent_last.0 = moveagent.0;
+    }
+}
+
+pub fn move_agents(
+    agent_query: Query<(&ChildOf, &AgentDesiredVelocity3d, &MoveAgent)>, 
+    mut actor_query: Query<(&mut Transform, &mut KinematicCharacterController)>,
+    time: Res<Time>,
+) {
+    for (child_of, desired_velocity, moveagent) in agent_query {
+        match moveagent {
+            // only move if moveagent true
+            &MoveAgent(true) => {
+                let (
+                    mut transform, 
+                    mut controller
+                ) = actor_query.get_mut(child_of.parent().entity()).unwrap();
+
+                if desired_velocity.velocity().length() > 0.1 {
+                    // align transform rotation so that agent looks where it's going
+                    transform.align(Dir3::X, desired_velocity.velocity().normalize(), Dir3::Y, Dir3::Y);
+                }
+                
+                // set next velocity
+                let mut next_velocity: Vec3 = Vec3::new(0.0, -0.1, 0.0); // slight downward tilt so that the collider snaps to the ground.
+                next_velocity += desired_velocity.velocity(); // add desired velocity
+                controller.translation = Some(next_velocity * time.delta_secs());
+            },
+            _ => {}
+        }
+        
+    }
+}
+
 #[derive(Clone)]
 pub struct CheckEntityInSight { pub entity_from: Entity, pub entity_to: Entity, pub radius: f32 }
-
 
 pub fn on_check_entity_in_sight(
 	trigger: On<BehaveTrigger<CheckEntityInSight>>, 
 	mut commands: Commands, 
     archipelago: Query<&Archipelago<ThreeD>>,
-    global_transform: Query<&GlobalTransform>,
+    global_transforms: Query<&GlobalTransform>,
 ) {
     // TODO: this does not work! fix it using the implementation at
     // https://github.com/andriyDev/landmass/blob/3c12842f7620c60a710e8483a2b152229ef4b00c/crates/landmass/src/agent.rs#L343
 	let ctx = trigger.ctx();
     let archipelago = archipelago.single().unwrap();
 
-    let entity_from_pos = global_transform.get(trigger.inner().entity_from).unwrap().translation();
-    let entity_to_pos = global_transform.get(trigger.inner().entity_to).unwrap().translation();
+    let entity_from_pos = global_transforms.get(trigger.inner().entity_from).unwrap().translation();
+    let entity_to_pos = global_transforms.get(trigger.inner().entity_to).unwrap().translation();
+    let raw_dist = entity_from_pos.distance(entity_to_pos);
     
-    let entity_from_pos_sampled = archipelago.sample_point(entity_from_pos, &archipelago.get_agent_options().point_sample_distance).unwrap();
-    let entity_to_pos_sampled = archipelago.sample_point(entity_to_pos, &archipelago.get_agent_options().point_sample_distance).unwrap();
+    let sample_dist = PointSampleDistance3d { 
+        horizontal_distance: 1.0,
+        distance_above: 1.0, 
+        distance_below: 1.0, 
+        vertical_preference_ratio: 1.0, 
+        animation_link_max_vertical_distance: 1.0 
+    };
 
-    let path = archipelago.find_path(&entity_from_pos_sampled, &entity_to_pos_sampled, &HashMap::new(), bevy_landmass::PermittedAnimationLinks::All).unwrap();
-    if path.len() == 1 {
-        commands.trigger(ctx.success());
-    } else {
-        commands.trigger(ctx.failure());
-    }
+    let entity_from_pos_sampled = archipelago.sample_point(entity_from_pos, &sample_dist);
+    let entity_to_pos_sampled = archipelago.sample_point(entity_to_pos, &sample_dist);
+    match (entity_from_pos_sampled, entity_to_pos_sampled) {
+        (Ok(from), Ok(to)) => {
+            let path = archipelago.find_path(&from, &to, &HashMap::new(), bevy_landmass::PermittedAnimationLinks::All).unwrap();
+            debug!("path: {:?}", path);
+            if path.len() <= 2 && raw_dist <= trigger.inner().radius {
+                debug!("visible");
+                commands.trigger(ctx.success());
+            } else {
+                debug!("not visible");
+                commands.trigger(ctx.failure());
+            }
+        }
+        _ => {
+            debug!("couldn't sample");
+            commands.trigger(ctx.failure());
+        }
+    };
 }
 
 #[derive(Clone)]
-pub struct MoveTowardsTarget { pub agent_entity: Entity, pub actor_entity: Entity }
+pub struct SetMoveTowardsTarget { pub agent_entity: Entity, pub do_move: bool }
 
-pub fn on_move_towards_target(
-	trigger: On<BehaveTrigger<MoveTowardsTarget>>,
-    agent_query: Query<(&AgentState, &AgentDesiredVelocity3d)>,
+pub fn on_set_move_towards_target(
+	trigger: On<BehaveTrigger<SetMoveTowardsTarget>>,
+    mut agent_query: Query<&mut MoveAgent, With<AgentState>>,
     mut commands: Commands,
-	mut actor_query: Query<(&mut Transform, &mut KinematicCharacterController)>,
-	time: Res<Time>
 ) {
 	let ctx = trigger.ctx();
 	let event = trigger.event().inner();
-	let (mut transform, mut controller) = actor_query.get_mut(event.actor_entity).unwrap();
 
-	if let Ok((agent_state, desired_velocity)) = agent_query.get(event.agent_entity) {
-        debug!("agent state:{:?}\tdesired velocity: {}", agent_state, desired_velocity.velocity());
-		if desired_velocity.velocity().length() > 0.1 {
-			// align transform rotation so that agent looks where it's going
-			transform.align(Dir3::X, desired_velocity.velocity().normalize(), Dir3::Y, Dir3::Y);
-		}
-		
-		// set next velocity
-		let mut next_velocity: Vec3 = Vec3::new(0.0, -0.1, 0.0); // slight downward tilt so that the collider snaps to the ground.
-		next_velocity += desired_velocity.velocity(); // add desired velocity
-		controller.translation = Some(next_velocity * time.delta_secs());
+	if let Ok(mut move_agent) = agent_query.get_mut(event.agent_entity) {
+        // set moving to true for this agent
+		move_agent.0 = event.do_move;
 		commands.trigger(ctx.success());
 	} else {
 		commands.trigger(ctx.failure());
 	}
-	
 }
-
-#[derive(Clone)]
-pub struct SwitchToIdling;
