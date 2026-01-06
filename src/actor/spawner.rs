@@ -43,7 +43,7 @@ impl ActorSpawner {
 		}
 	}
 
-	pub fn spawn(&self, commands: &mut Commands, asset_server: &Res<AssetServer>, archipelago_ref: &Entity, player_entity: Option<&Entity>) {
+	pub fn spawn(&self, commands: &mut Commands, asset_server: &Res<AssetServer>, archipelago_ref: &Entity) {
 		debug!("Spawning {} actors...", self.positions.len());
 		self.positions.iter().for_each(|&pos| 
 			{ 
@@ -102,21 +102,13 @@ pub fn use_actor_spawners(
 	mut commands: Commands,
 	asset_server: Res<AssetServer>,
 	island_archipelago_ref: Query<&mut ArchipelagoRef3d, With<Island>>,
-	player: Query<Entity, With<Character<ThreeD>>>,
 ) {
-	let player = player.single().unwrap();
 	for (entity, spawner) in &spawners {
 		if spawner.use_next_tick {
-			let player_entity = match spawner.template.actor_type {
-				ActorType::Enemy { radius: _ } => Some(&player),
-				_ => None
-			};
-
 			spawner.spawn(
 				&mut commands, 
 				&asset_server, 
 				&island_archipelago_ref.single().expect("Cound not find archipelago reference on island").entity,
-				player_entity,
 			);
 		}
 		commands.entity(entity).despawn();
@@ -129,7 +121,7 @@ pub fn load_actor_spawners(mut commands: Commands) {
 		vec![Vec3::new(-35.0, 3.7, -10.0)],
 		ActorSpawnerTemplate {
 			actor_name: "Skeleton".into(),
-			actor_type: ActorType::Enemy { radius: 100.0 },
+			actor_type: ActorType::Enemy { sight_radius: 100.0, attack_radius: 1.0 },
 			half_height: 1.0,
 			radius: 0.3,
 			visibility: true,

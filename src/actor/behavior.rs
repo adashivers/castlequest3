@@ -49,7 +49,7 @@ pub fn init_actor_behavior(
         let agent_entity = agent_entity.unwrap();
 
         let (tree, agent_target) = match actor_type {
-            ActorType::Enemy { radius } => {
+            ActorType::Enemy { sight_radius, attack_radius } => {
                 debug!("setting up entity {}'s agent entity as an enemy", entity.index());
                 let (_, player_children) = player_query.single().unwrap();
                 // The navigation mesh Character entity is actually a parent of the top entity that makes up the player. We use this to get it:
@@ -57,11 +57,39 @@ pub fn init_actor_behavior(
                 let tree = behave! {
                         Behave::Forever => {
                             Behave::Fallback => {
+                                // attack action
                                 Behave::Sequence => {
-                                    Behave::trigger(CheckEntityInSight { entity_from: agent_entity, entity_to: player_char_entity, radius: *radius }),
-                                    Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, do_move: true }),
+                                    Behave::trigger(CheckEntityInSight { entity_from: agent_entity, entity_to: player_char_entity, radius: *attack_radius}),
+                                    Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, do_move: false }),
+                                    Behave::While => {
+                                        Behave::trigger(CheckEntityInSight { entity_from: agent_entity, entity_to: player_char_entity, radius: *attack_radius}),
+                                        Behave::trigger(Attack { attacking_agent_entity: agent_entity }), // TODO: implement on_attack (and decide how to trigger attack anim)
+                                    }
+                                    
                                 },
-                            // Behave::trigger(SwitchToIdling)
+                                // move cycle
+                                Behave::Fallback => {
+                                    // enemy in sight logic
+                                    Behave::Sequence => {
+                                        Behave::trigger(CheckEntityInSight { entity_from: agent_entity, entity_to: player_char_entity, radius: *sight_radius }),
+                                        // if not already moving, start moving towards player
+                                        Behave::Invert => {
+                                            Behave::trigger(CheckMoving { agent_entity: agent_entity }), // TODO: implement
+                                        },
+                                        // TODO: implement. 
+                                        // when this and SetAgentTargetPosition are done, we can remove the functionality of this method that adds a target entity.
+                                        // i.e. delete agent_target
+                                        Behave::trigger(SetAgentTargetEntity { agent_entity: agent_entity, char_entity: player_char_entity } ), 
+                                        Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, do_move: true }),
+                                    },
+                                    // enemy not in sight but still targeted logic
+                                    Behave::Sequence => {
+                                        Behave::trigger(CheckMoving { agent_entity: agent_entity }),
+                                    },
+                                    // enemy not in sight logic
+                                    Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, do_move: true }),
+                                    Behave::trigger(SetAgentTargetPosition { agent_entity: agent_entity, target_pos: Vec3::ZERO }), // TODO: implement
+                                },
                         }
                     }
                 };
@@ -215,21 +243,36 @@ pub fn on_check_entity_in_sight(
 }
 
 #[derive(Clone)]
+// this should always return success
 pub struct SetMoveTowardsTarget { pub agent_entity: Entity, pub do_move: bool }
 
 pub fn on_set_move_towards_target(
 	trigger: On<BehaveTrigger<SetMoveTowardsTarget>>,
-    mut agent_query: Query<&mut MoveAgent, With<AgentState>>,
+    mut agent_query: Query<(&mut MoveAgent, &mut AgentTarget3d), With<AgentState>>,
     mut commands: Commands,
 ) {
 	let ctx = trigger.ctx();
 	let event = trigger.event().inner();
 
-	if let Ok(mut move_agent) = agent_query.get_mut(event.agent_entity) {
-        // set moving to true for this agent
-		move_agent.0 = event.do_move;
-		commands.trigger(ctx.success());
-	} else {
-		commands.trigger(ctx.failure());
-	}
+    let agent_query_result =  agent_query.get_mut(event.agent_entity);
+    match agent_query_result {
+        Ok((mut move_agent, target)) => {
+            // set moving to true for this agent
+            move_agent.0 = event.do_move;
+            commands.trigger(ctx.success());
+        },
+        Err(e) => panic!("{e:?}"),
+    }
 }
+
+#[derive(Clone)]
+pub struct Attack { pub attacking_agent_entity: Entity }
+
+#[derive(Clone)]
+pub struct CheckMoving { pub agent_entity: Entity }
+
+#[derive(Clone)]
+pub struct SetAgentTargetEntity { agent_entity: Entity, char_entity: Entity } 
+
+#[derive(Clone)]
+pub struct SetAgentTargetPosition { agent_entity: Entity, target_pos: Vec3 } 

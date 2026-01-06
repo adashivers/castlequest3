@@ -75,7 +75,7 @@ pub struct Player;
 // Enemies take in a radius parameter which defines their line of sight.
 // TODO: Use this enum (and this system in general) for setting up the player.
 pub enum ActorType {
-	Enemy{radius: f32},
+	Enemy{sight_radius: f32, attack_radius: f32},
 	Player,
 	#[default]
 	Neutral
@@ -95,7 +95,7 @@ pub struct ActorBundle {
 impl Default for ActorBundle {
 	fn default() -> Self {
 		Self { 
-			actor_type: ActorType::Enemy { radius: 100.0 },
+			actor_type: ActorType::Enemy { sight_radius: 100.0, attack_radius: 1.0 },
 			health: Health { hp: 100 }, 
 			transform: Transform::default(), 
 			visibility: Visibility::Visible,
