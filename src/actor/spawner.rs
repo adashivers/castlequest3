@@ -1,8 +1,7 @@
 use bevy::prelude::*;
-use bevy_behave::prelude::*;
 use bevy_rapier3d::{prelude::{Collider,}};
 use bevy_landmass::{
-	Agent3dBundle, AgentSettings, AgentState, ArchipelagoRef3d, Character, Island, TargetReachedCondition, coords::ThreeD
+	Agent3dBundle, AgentSettings, ArchipelagoRef3d, Island, TargetReachedCondition,
 };
 use super::{Health, SKELETON_PATH};
 use crate::actor::*;

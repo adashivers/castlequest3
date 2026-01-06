@@ -76,7 +76,7 @@ pub fn init_actor_behavior(
                                         Behave::Invert => {
                                             Behave::trigger(CheckMoving { agent_entity: agent_entity }), // TODO: implement
                                         },
-                                        // TODO: implement. 
+                                        // TODO: implement on_set_agent_target_entity. 
                                         // when this and SetAgentTargetPosition are done, we can remove the functionality of this method that adds a target entity.
                                         // i.e. delete agent_target
                                         Behave::trigger(SetAgentTargetEntity { agent_entity: agent_entity, char_entity: player_char_entity } ), 
