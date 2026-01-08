@@ -29,11 +29,11 @@ impl Plugin for EnemySpawnPlugin {
 		.init_resource::<SkeletonAnimTargets>()
 		.add_observer(on_check_entity_in_sight)
 		.add_observer(on_set_move_towards_target)
+		.add_observer(set_animation_events)
 		.add_systems(Startup, load_animations)
 		.add_systems(OnExit(super::MyAppState::Loading), (
 			
 			load_actor_spawners,
-			set_animation_events,
 			
 		))
 		.add_systems(Update, (

@@ -1,5 +1,5 @@
 use std::time::Duration;
-use bevy::{animation::AnimationTargetId, asset::uuid::Uuid, prelude::*};
+use bevy::{animation::{AnimationTarget, AnimationTargetId}, asset::uuid::Uuid, prelude::*, scene::SceneInstanceReady};
 use bevy_rapier3d::prelude::{ActiveEvents, Collider};
 use crate::{debris::Debris, loading_system::AssetsLoading, utils::get_top_parent};
 
@@ -55,37 +55,51 @@ pub fn load_animations(
 
 }
 
-// TODO: fix this! doesn't work for some reason
+// TODO: make it so this doesnt use iter_descendants, which is very costly. also move this to a new file called "attack"
 pub fn set_animation_events(
+	trigger: On<SceneInstanceReady>,
 	graphs: Res<Assets<AnimationGraph>>,
 	animations: Res<Animations>,
 	mut clips: ResMut<Assets<AnimationClip>>,
 	skel_anim_targets: Res<SkeletonAnimTargets>,
+	animation_targets: Query<&AnimationTarget>,
+	children: Query<&Children>,
 ) {
-	let graph = graphs.get(animations.graph_handle.id()).unwrap();
-	let attack_anim_node = graph.get(animations.animations[1]).unwrap();
-	let clip = match &attack_anim_node.node_type {
-		AnimationNodeType::Clip(clip_handle) => clips.get_mut(clip_handle.id()),
-		_ => unreachable!(),
-	}.unwrap();
-	debug!("setting animation events");
-	clip.add_event_fn_to_target(
-		skel_anim_targets.right_hand, 
-		0.7, 
-		|commands, entity, _, _| {
-			debug!("spawning hitbox");
-			// spawn skeleton hitbox during attack animation
-			let hitbox = commands.spawn((
-				Collider::cuboid(1.0, 1.0, 1.0),
-				ActiveEvents::COLLISION_EVENTS,
-			)).id();
-			commands.entity(entity).add_child(hitbox);
+
+	for entity in children.iter_descendants(trigger.entity) {
+		if let Ok(anim_target) = animation_targets.get(entity) {
+			if anim_target.id.0.to_string() == skel_anim_targets.right_hand.0.to_string() {
+				debug!("found right hand");
+				let graph = graphs.get(animations.graph_handle.id()).unwrap();
+				let attack_anim_node = graph.get(animations.animations[1]).unwrap();
+				let clip = match &attack_anim_node.node_type {
+					AnimationNodeType::Clip(clip_handle) => clips.get_mut(clip_handle.id()),
+					_ => unreachable!(),
+				}.unwrap();
+
+				clip.add_event_fn_to_target(
+					skel_anim_targets.right_hand, 
+					0.5, 
+					|commands, entity, _, _| {
+						debug!("spawning hitbox");
+						// spawn skeleton hitbox during attack animation
+						let hitbox = commands.spawn((
+							Transform::from_translation(Vec3::ZERO),
+							Name::new("Hitbox"),
+							Collider::cuboid(5.0, 10.0, 5.0),
+							ActiveEvents::COLLISION_EVENTS,
+							Debris(Timer::from_seconds(0.2, TimerMode::Once)),
+						)).id();
+						commands.entity(entity).add_child(hitbox);
+					}
+				);
+			}
 		}
-	);
+	}
+
+	
 	
 }
-
-
 
 #[derive(Component, Debug)]
 pub struct AnimationEntityLink(pub Entity);
