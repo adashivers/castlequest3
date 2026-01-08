@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use crate::debris::DebrisPlugin;
 use crate::loading_system::{GameScenes, LoadingSystemPlugin};
 use crate::player_movement::PlayerMovementPlugin;
 use crate::actor::navigation::{ArchipelagoSetup, NavmeshGenerating, NavmeshGenerators};
@@ -21,6 +22,7 @@ pub mod ui;
 pub mod debug;
 pub mod actor;
 pub mod utils;
+pub mod debris;
 
 // States of the app in general. Could become more complicated in the future
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
@@ -63,6 +65,7 @@ fn main() {
             PlayerMovementPlugin,
             EnemySpawnPlugin,
             UIPlugin,
+            DebrisPlugin,
         ))
         .configure_sets(
             PreUpdate,
