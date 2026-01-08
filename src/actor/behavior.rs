@@ -63,7 +63,10 @@ pub fn init_actor_behavior(
                                     Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, do_move: false }),
                                     Behave::While => {
                                         Behave::trigger(CheckEntityInSight { entity_from: agent_entity, entity_to: player_char_entity, radius: *attack_radius}),
-                                        Behave::trigger(Attack { attacking_agent_entity: agent_entity }), // TODO: implement on_attack (and decide how to trigger attack anim)
+                                        Behave::spawn_named("Attack", (
+                                            Attack { attacking_agent_entity: entity },
+                                            BehaveTimeout::from_secs(2.1, true),
+                                        )),
                                     }
                                     
                                 },
@@ -73,22 +76,25 @@ pub fn init_actor_behavior(
                                     Behave::Sequence => {
                                         Behave::trigger(CheckEntityInSight { entity_from: agent_entity, entity_to: player_char_entity, radius: *sight_radius }),
                                         // if not already moving, start moving towards player
-                                        Behave::Invert => {
-                                            Behave::trigger(CheckMoving { agent_entity: agent_entity }), // TODO: implement
-                                        },
+                                        // Behave::Invert => {
+                                        //     Behave::trigger(CheckMoving { agent_entity: agent_entity }), // TODO: implement
+                                        // },
+
                                         // TODO: implement on_set_agent_target_entity. 
                                         // when this and SetAgentTargetPosition are done, we can remove the functionality of this method that adds a target entity.
                                         // i.e. delete agent_target
-                                        Behave::trigger(SetAgentTargetEntity { agent_entity: agent_entity, char_entity: player_char_entity } ), 
+                                        // Behave::trigger(SetAgentTargetEntity { agent_entity: agent_entity, char_entity: player_char_entity } ), 
                                         Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, do_move: true }),
                                     },
+
                                     // enemy not in sight but still targeted logic
-                                    Behave::Sequence => {
-                                        Behave::trigger(CheckMoving { agent_entity: agent_entity }),
-                                    },
+                                    // Behave::Sequence => {
+                                    //     Behave::trigger(CheckMoving { agent_entity: agent_entity }),
+                                    // },
+
                                     // enemy not in sight logic
-                                    Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, do_move: true }),
-                                    Behave::trigger(SetAgentTargetPosition { agent_entity: agent_entity, target_pos: Vec3::ZERO }), // TODO: implement
+                                    // Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, do_move: true }),
+                                    // Behave::trigger(SetAgentTargetPosition { agent_entity: agent_entity, target_pos: Vec3::ZERO }), // TODO: implement
                                 },
                         }
                     }
@@ -143,14 +149,6 @@ pub fn update_agent_animations(
                 }
                 false => {
                     // this is a case by case basis and should be set by the propagator.
-                    // for now i will set this to play idle, but will probably change when we implement attacks
-                    animation_transitions
-                        .play(
-                            &mut animation_player, 
-                            animations.animations[0], 
-                            Duration::from_millis(250)
-                        )
-                        .repeat();
                 }
             }
         }
@@ -179,9 +177,15 @@ pub fn move_agents(
                     mut controller
                 ) = actor_query.get_mut(child_of.parent().entity()).unwrap();
 
-                if desired_velocity.velocity().length() > 0.1 {
+                if desired_velocity.velocity().length() > 0.05 {
                     // align transform rotation so that agent looks where it's going
-                    transform.align(Dir3::X, desired_velocity.velocity().normalize(), Dir3::Y, Dir3::Y);
+                    let mut desired_look_dir = desired_velocity.velocity().normalize();
+                    desired_look_dir.y = 0.0;
+                    // debug!("turning");
+                    let angle = -desired_look_dir.z.signum() * Vec3::X.angle_between(desired_look_dir);
+                    let desired_rotation = Quat::from_axis_angle(Vec3::Y, angle);
+
+                    transform.rotation = transform.rotation.rotate_towards(desired_rotation, 0.1);
                 }
                 
                 // set next velocity
@@ -196,6 +200,7 @@ pub fn move_agents(
 }
 
 #[derive(Clone)]
+// TODO: add vision radius
 pub struct CheckEntityInSight { pub entity_from: Entity, pub entity_to: Entity, pub radius: f32 }
 
 pub fn on_check_entity_in_sight(
@@ -204,12 +209,11 @@ pub fn on_check_entity_in_sight(
     archipelago: Query<&Archipelago<ThreeD>>,
     global_transforms: Query<&GlobalTransform>,
 ) {
-    // TODO: this does not work! fix it using the implementation at
-    // https://github.com/andriyDev/landmass/blob/3c12842f7620c60a710e8483a2b152229ef4b00c/crates/landmass/src/agent.rs#L343
 	let ctx = trigger.ctx();
     let archipelago = archipelago.single().unwrap();
 
-    let entity_from_pos = global_transforms.get(trigger.inner().entity_from).unwrap().translation();
+    let entity_from_transform = global_transforms.get(trigger.inner().entity_from).unwrap();
+    let entity_from_pos = entity_from_transform.translation();
     let entity_to_pos = global_transforms.get(trigger.inner().entity_to).unwrap().translation();
     let raw_dist = entity_from_pos.distance(entity_to_pos);
     
@@ -226,17 +230,17 @@ pub fn on_check_entity_in_sight(
     match (entity_from_pos_sampled, entity_to_pos_sampled) {
         (Ok(from), Ok(to)) => {
             let path = archipelago.find_path(&from, &to, &HashMap::new(), bevy_landmass::PermittedAnimationLinks::All).unwrap();
-            debug!("path: {:?}", path);
+            // debug!("path: {:?}", path);
             if path.len() <= 2 && raw_dist <= trigger.inner().radius {
-                debug!("visible");
+                // debug!("visible");
                 commands.trigger(ctx.success());
             } else {
-                debug!("not visible");
+                // debug!("not visible");
                 commands.trigger(ctx.failure());
             }
         }
         _ => {
-            debug!("couldn't sample");
+            // debug!("couldn't sample");
             commands.trigger(ctx.failure());
         }
     };
@@ -265,28 +269,32 @@ pub fn on_set_move_towards_target(
     }
 }
 
-#[derive(Clone)]
-pub struct Attack { pub attacking_agent_entity: Entity }
+#[derive(Component, Clone)]
+pub struct Attack { attacking_agent_entity: Entity }
+
 pub fn on_attack(
-	trigger: On<BehaveTrigger<Attack>>,
+    attacks: Query<&Attack, Added<Attack>>,
     actor_query: Query<&AnimationEntityLink, With<ActorType>>,
     mut animation_query: Query<(&mut AnimationPlayer, &mut AnimationTransitions)>,
 	animations: Res<Animations>,
 ) {
-    let ctx = trigger.ctx();
-	let entity = trigger.event().inner().attacking_agent_entity;
-    if let Ok(AnimationEntityLink(anim_entity)) = actor_query.get(entity) {
-        let (mut animation_player, mut animation_transitions) = animation_query.get_mut(*anim_entity).unwrap();
-        // play attack animation.
-        // the entity should have attack events defined for AnimationTarget at this point, so this should be enough.
-        animation_transitions.play(
-            &mut animation_player,  
-            animations.animations[1], // attack
-            Duration::from_millis(250)
-        );
+    for attack in attacks {
+        let attacking_entity = attack.attacking_agent_entity;
+        debug!("entity {} is attacking!", attacking_entity.index());
+
+        // play attack anim
+        if let Ok(AnimationEntityLink(anim_entity)) = actor_query.get(attacking_entity) {
+            let (mut animation_player, mut animation_transitions) = animation_query.get_mut(*anim_entity).unwrap();
+            // play attack animation.
+            // the entity should have attack events defined for AnimationTarget at this point, so this should be enough.
+            animation_transitions.play(
+                &mut animation_player,  
+                animations.animations[1], // attack
+                Duration::from_millis(250)
+            );
+        }
+
     }
-
-
 }
 
 

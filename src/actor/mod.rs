@@ -45,6 +45,7 @@ impl Plugin for EnemySpawnPlugin {
 				use_actor_spawners,
 				move_agents,
 				update_agent_animations,
+				on_attack,
 				
 			).in_set(super::GameplaySet)
 		)
