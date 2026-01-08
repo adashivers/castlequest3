@@ -26,13 +26,14 @@ impl Plugin for EnemySpawnPlugin {
 			ActorNavigationPlugin,
 			BehavePlugin::default(),
 		)) 
+		.init_resource::<SkeletonAnimTargets>()
 		.add_observer(on_check_entity_in_sight)
 		.add_observer(on_set_move_towards_target)
+		.add_systems(Startup, load_animations)
 		.add_systems(OnExit(super::MyAppState::Loading), 
-			(
-				load_animations.after(super::setup_player),
-				load_actor_spawners
-			)
+			
+			load_actor_spawners,
+			
 		)
 		.add_systems(Update, (
 				(

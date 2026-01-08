@@ -6,7 +6,7 @@ use bevy::prelude::*;
 use bevy_behave::prelude::*;
 use bevy_landmass::coords::ThreeD;
 use bevy_landmass::{AgentDesiredVelocity3d, AgentState, AgentTarget3d, Archipelago, Character, PointSampleDistance3d};
-use bevy_rapier3d::prelude::KinematicCharacterController;
+use bevy_rapier3d::prelude::{KinematicCharacterController};
 use crate::actor::animations::*;
 use crate::actor::{Player,};
 use crate::debug::{DebugFlags};
@@ -267,6 +267,28 @@ pub fn on_set_move_towards_target(
 
 #[derive(Clone)]
 pub struct Attack { pub attacking_agent_entity: Entity }
+pub fn on_attack(
+	trigger: On<BehaveTrigger<Attack>>,
+    actor_query: Query<&AnimationEntityLink, With<ActorType>>,
+    mut animation_query: Query<(&mut AnimationPlayer, &mut AnimationTransitions)>,
+	animations: Res<Animations>,
+) {
+    let ctx = trigger.ctx();
+	let entity = trigger.event().inner().attacking_agent_entity;
+    if let Ok(AnimationEntityLink(anim_entity)) = actor_query.get(entity) {
+        let (mut animation_player, mut animation_transitions) = animation_query.get_mut(*anim_entity).unwrap();
+        // play attack animation.
+        // the entity should have attack events defined for AnimationTarget at this point, so this should be enough.
+        animation_transitions.play(
+            &mut animation_player,  
+            animations.animations[1], // attack
+            Duration::from_millis(250)
+        );
+    }
+
+
+}
+
 
 #[derive(Clone)]
 pub struct CheckMoving { pub agent_entity: Entity }

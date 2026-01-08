@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 
-// next two methods built with reference from here:
 // https://github.com/SnowdenWintermute/bevy-multiple-characters-animation/blob/main/src/animated_character/link_animations.rs
 pub fn get_top_parent(
     mut curr_entity: Entity,
