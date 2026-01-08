@@ -1,15 +1,17 @@
 use std::fmt::Debug;
+use crate::debris::DebrisPlugin;
 use crate::loading_system::{GameScenes, LoadingSystemPlugin};
 use crate::player_movement::PlayerMovementPlugin;
-use crate::actor_navigation::{ActorNavigationPlugin, ArchipelagoSetup, NavmeshGenerating, NavmeshGenerators};
+use crate::actor::navigation::{ArchipelagoSetup, NavmeshGenerating, NavmeshGenerators};
 use crate::debug::{CQ3DebugPlugin};
-use crate::skeleton::EnemySpawnPlugin;
+use crate::actor::{EnemySpawnPlugin, Player, Health};
 use crate::ui::UIPlugin;
 
 use bevy::window::CursorGrabMode;
 use bevy::window::CursorOptions;
 use bevy::{prelude::*, log::LogPlugin};
 use bevy::remote::{RemotePlugin, http::RemoteHttpPlugin};
+use bevy::color::palettes::basic::GRAY;
 
 use bevy_rapier3d::{control::KinematicCharacterController, prelude::*};
 use bevy_landmass::{prelude::*};
@@ -17,9 +19,10 @@ use bevy_landmass::{prelude::*};
 pub mod loading_system;
 pub mod player_movement;
 pub mod ui;
-pub mod actor_navigation;
 pub mod debug;
-pub mod skeleton;
+pub mod actor;
+pub mod utils;
+pub mod debris;
 
 // States of the app in general. Could become more complicated in the future
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
@@ -57,12 +60,12 @@ fn main() {
         .insert_state(MyAppState::Loading)
         // internal plugins
         .add_plugins((
-            ActorNavigationPlugin,
             CQ3DebugPlugin,
             LoadingSystemPlugin,
             PlayerMovementPlugin,
             EnemySpawnPlugin,
             UIPlugin,
+            DebrisPlugin,
         ))
         .configure_sets(
             PreUpdate,
@@ -96,34 +99,31 @@ fn main() {
         .run();
 }
 
-#[derive(Component)]
-pub struct Health {
-    hp: u32,
-}
-
-impl Default for Health {
-    fn default() -> Self {
-        Health { hp: 100 }
-    }
-}
-
-#[derive(Component, Default)]
-pub struct Player;
-
 pub fn setup_player(
     mut commands: Commands,
     island_archipelago_ref: Query<&mut ArchipelagoRef3d, With<Island>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>
 ) {
     const FOV: f32 = f32::to_radians(60.0);
     let archipelago_ref = ArchipelagoRef3d::new(island_archipelago_ref.single().expect("Cound not find archipelago reference on island").entity);
 
     commands
         .spawn((
+            Name::new("Player"),
             Player::default(),
             Health { hp: 90 },
             Transform::from_xyz(0.0, 5.0, 0.0),
             Visibility::default(),
             Collider::round_cylinder(0.7, 0.1, 0.0),
+            CollisionGroups::new(Group::GROUP_1, Group::GROUP_2),
+            ActiveEvents::COLLISION_EVENTS,
+            ActiveCollisionTypes::all(),
+            Mesh3d(meshes.add(Cylinder::new(0.1, 1.4))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: GRAY.into(),
+                ..default()
+            })),
             KinematicCharacterController {
                 custom_mass: Some(5.0),
                 up: Vec3::Y,
@@ -190,8 +190,9 @@ pub fn spawn_level_map(
             match collider_option {
                 Some(collider) => {
                     commands.spawn((
+                        Name::new("Level Collider"),
                         Mesh3d(gen_mesh_handle.clone()),
-                        MeshMaterial3d(materials.add(Color::BLACK)),
+                        MeshMaterial3d(materials.add(Color::BLACK)), // adding for debug purposes
                         Transform::from_xyz(0.0, 0.0, 0.0),
                         Visibility::Hidden,
                         NavmeshGenerating,
@@ -208,7 +209,7 @@ pub fn spawn_level_map(
     scenes.0
         .iter()
         .for_each(|scene| {
-            commands.spawn(SceneRoot(scene.clone()));
+            commands.spawn((Name::new("Scene"), SceneRoot(scene.clone())));
         });
     
 }
@@ -218,12 +219,11 @@ pub fn spawn_level_map(
 // copied almost directly from bevy example mouse_grab.
 fn grab_mouse(
     mut cursor_options_q: Query<&mut CursorOptions>,
-    mouse: Res<ButtonInput<MouseButton>>,
     key: Res<ButtonInput<KeyCode>>,
 ) {
     let mut cursor_options = cursor_options_q.single_mut().unwrap();
 
-    if mouse.just_pressed(MouseButton::Left) {
+    if key.just_pressed(KeyCode::Space) {
         cursor_options.visible = false;
         cursor_options.grab_mode = CursorGrabMode::Locked;
     }

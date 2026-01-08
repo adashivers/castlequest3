@@ -8,7 +8,7 @@ use bevy_rapier3d::{control::KinematicCharacterController, prelude::*,};
 pub const GRAVITY: f32 = -9.8;
 pub const MOUSE_SENSITIVITY: f32 = 0.3;
 pub const GROUND_TIMER: f32 = 0.5;
-pub const MOVEMENT_SPEED: f32 = 8.0;
+pub const MOVEMENT_SPEED: f32 = 2.0;
 pub const JUMP_SPEED: f32 = 0.0; // TODO: remove jumping for real
 
 pub fn highest_point() -> f32 { JUMP_SPEED * JUMP_SPEED / (-2.0 * GRAVITY) } // the max height this player can gain with a jump

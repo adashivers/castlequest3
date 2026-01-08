@@ -1,0 +1,149 @@
+use std::time::Duration;
+use bevy::{animation::{AnimationTarget, AnimationTargetId}, asset::uuid::Uuid, prelude::*, scene::SceneInstanceReady};
+use bevy_rapier3d::{prelude::{ActiveCollisionTypes, ActiveEvents, Collider, CollisionGroups, Group, Sensor}, rapier::prelude::ColliderBuilder};
+use crate::{debris::Debris, loading_system::AssetsLoading, utils::get_top_parent};
+
+use super::SKELETON_PATH;
+
+#[derive(Resource)]
+pub struct Animations { // taken from bevy example animations
+	pub animations: Vec<AnimationNodeIndex>,
+	pub graph_handle: Handle<AnimationGraph>,
+}
+
+#[derive(Resource, Clone)]
+pub struct SkeletonAnimTargets {
+	pub right_hand: AnimationTargetId
+}
+impl Default for SkeletonAnimTargets {
+    fn default() -> Self {
+		SkeletonAnimTargets {
+			right_hand: AnimationTargetId(Uuid::parse_str("0e9581a4-7976-5144-b335-df12bed85f5d").unwrap())
+		}
+		
+	}
+}
+
+
+pub fn load_animations(
+	asset_server: Res<AssetServer>,
+	mut commands: Commands,
+	mut graphs: ResMut<Assets<AnimationGraph>>,
+	mut assets_loading: ResMut<AssetsLoading>,
+) {
+	debug!("Loading all required animations...");
+	let clips = [
+		asset_server.load(GltfAssetLabel::Animation(0).from_asset(SKELETON_PATH)), // idle
+		asset_server.load(GltfAssetLabel::Animation(1).from_asset(SKELETON_PATH)), // swing
+		asset_server.load(GltfAssetLabel::Animation(2).from_asset(SKELETON_PATH)), // walk
+	];
+
+	// add clip assets to loading list
+	for clip in clips.clone() {
+		assets_loading.0.push(clip.untyped());
+	}
+
+	let (graph, node_indices) = AnimationGraph::from_clips(clips);
+
+	// Keep our animation graph in a Resource so that it can be inserted onto
+	// the correct entity once the scene actually loads.
+	let graph_handle = graphs.add(graph);
+	commands.insert_resource(Animations {
+		animations: node_indices,
+		graph_handle,
+	});
+
+}
+
+#[derive(Component, Clone)]
+pub struct HurtBox(pub i32);
+
+// TODO: make it so this doesnt use iter_descendants, which is very costly. also move this to a new file called "attack"
+pub fn set_animation_events(
+	trigger: On<SceneInstanceReady>,
+	graphs: Res<Assets<AnimationGraph>>,
+	animations: Res<Animations>,
+	mut clips: ResMut<Assets<AnimationClip>>,
+	skel_anim_targets: Res<SkeletonAnimTargets>,
+	animation_targets: Query<&AnimationTarget>,
+	children: Query<&Children>,
+) {
+
+	for entity in children.iter_descendants(trigger.entity) {
+		if let Ok(anim_target) = animation_targets.get(entity) {
+			if anim_target.id.0.to_string() == skel_anim_targets.right_hand.0.to_string() {
+				debug!("found right hand");
+				let graph = graphs.get(animations.graph_handle.id()).unwrap();
+				let attack_anim_node = graph.get(animations.animations[1]).unwrap();
+				let clip = match &attack_anim_node.node_type {
+					AnimationNodeType::Clip(clip_handle) => clips.get_mut(clip_handle.id()),
+					_ => unreachable!(),
+				}.unwrap();
+
+				clip.add_event_fn_to_target(
+					skel_anim_targets.right_hand, 
+					0.5, 
+					|commands, entity, _, _| {
+						debug!("spawning hitbox");
+						// spawn skeleton hitbox during attack animation
+						let hitbox = commands.spawn((
+							HurtBox(10),
+							Transform::from_translation(Vec3::ZERO),
+							Name::new("Hitbox"),
+							Collider::cuboid(5.0, 15.0, 5.0),
+							CollisionGroups::new(Group::GROUP_2, Group::GROUP_1),
+							Sensor,
+							ActiveEvents::COLLISION_EVENTS,
+							Debris(Timer::from_seconds(0.2, TimerMode::Once)),
+						)).id();
+						commands.entity(entity).add_child(hitbox);
+					}
+				);
+			}
+		}
+	}
+
+	
+	
+}
+
+#[derive(Component, Debug)]
+pub struct AnimationEntityLink(pub Entity);
+
+// An `AnimationPlayer` is automatically added to the scene when it's ready.
+// An `AnimationTransitions` component should always be added to the same entity 
+// that has the `AnimationPlayer` component it's refering to.
+// An `AnimationEntityLink` is on the topmost parent of the entity that has the `AnimationPlayer`.
+pub fn link_animations(
+	mut commands: Commands,
+	animations: Res<Animations>,
+	all_entities_with_parents_query: Query<&ChildOf>,
+	mut anim_players: Query<(Entity, &mut AnimationPlayer), Added<AnimationPlayer>>,
+	animation_link_query: Query<&AnimationEntityLink>,
+) {
+	if !anim_players.is_empty() {
+		debug!("running link animations system");
+	}
+	for (anim_player_entity, mut anim_player) in &mut anim_players {
+
+		let top_entity = get_top_parent(anim_player_entity, &all_entities_with_parents_query);
+        if animation_link_query.get(top_entity).is_ok() {
+            warn!("\tProblem with multiple animation players for the same top parent");
+        } else {
+			debug!("\tinserting animation link to entity {}", top_entity.row().index());
+			commands.entity(top_entity).insert(AnimationEntityLink(anim_player_entity.clone()));
+			//debug!("Top entity:\n{:#?}", world.inspect_entity(top_entity).unwrap().map(|info| info.name()).collect::<Vec<_>>());
+		}
+
+		
+		debug!("\tsetting up transitions");
+		let mut transitions = AnimationTransitions::new();
+		transitions
+            .play(&mut anim_player, animations.animations[0], Duration::ZERO)
+            .repeat();
+		commands
+			.entity(anim_player_entity)
+			.insert(AnimationGraphHandle(animations.graph_handle.clone()))
+			.insert(transitions);
+	}
+}
