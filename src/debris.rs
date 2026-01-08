@@ -9,7 +9,7 @@ impl Plugin for DebrisPlugin {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 // any entity with this component will be removed after the timer is done.
 pub struct Debris(pub Timer);
 
