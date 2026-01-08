@@ -16,7 +16,7 @@ pub struct ActorSpawnerTemplate {
 	half_height: f32,
 	radius: f32,
 	visibility: bool,
-	max_health: u32,
+	max_health: i32,
 	agent_settings: AgentSettings,
 	target_reached_condition: TargetReachedCondition,
 	model_path: String,
@@ -117,10 +117,10 @@ pub fn use_actor_spawners(
 // Load a spawner that spawns a skeleton in the northern hallway. This is mainly for testing the game right now.
 pub fn load_actor_spawners(mut commands: Commands) {
 	commands.spawn(ActorSpawner::new(
-		vec![Vec3::new(-35.0, 3.7, -10.0)],
+		vec![Vec3::new(-35.0, 3.7, -10.0), Vec3::new(-22.0, 2.2, 0.0)],
 		ActorSpawnerTemplate {
 			actor_name: "Skeleton".into(),
-			actor_type: ActorType::Enemy { sight_radius: 100.0, attack_radius: 2.0 },
+			actor_type: ActorType::Enemy { sight_radius: 100.0, attack_radius: 1.0 },
 			half_height: 1.0,
 			radius: 0.3,
 			visibility: true,

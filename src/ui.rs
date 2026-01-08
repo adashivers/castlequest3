@@ -32,7 +32,7 @@ pub fn setup_ui(
     asset_server: Res<AssetServer>,
     health_query: Query<&Health, With<Player>>,
 ) {
-    let player_hp: u32 = match health_query.single() {
+    let player_hp: i32 = match health_query.single() {
         Ok(Health { hp }) => *hp,
         Err(err) => {
             debug!("Health UI found no player health: {}", err);
@@ -79,7 +79,7 @@ pub fn update_ui(
     
 ) {
     // update hp text
-    let player_hp: u32 = match health_query.single() {
+    let player_hp: i32 = match health_query.single() {
         Ok(Health { hp }) => *hp,
         Err(err) => {
             debug!("Health UI found no player health: {}", err);

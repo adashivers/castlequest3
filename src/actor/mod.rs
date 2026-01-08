@@ -7,11 +7,13 @@ use animations::*;
 use spawner::*;
 use navigation::*;
 use behavior::*;
+use attack::*;
 
 const SKELETON_PATH: &str = "models/skeleton.glb";
 pub mod animations;
 pub mod spawner;
 pub mod navigation;
+mod attack;
 mod behavior;
 
 // -- PLUGIN --
@@ -47,6 +49,7 @@ impl Plugin for EnemySpawnPlugin {
 				move_agents,
 				update_agent_animations,
 				on_attack,
+				use_attack_collisions,
 				
 			).in_set(super::GameplaySet)
 		)
@@ -59,7 +62,7 @@ impl Plugin for EnemySpawnPlugin {
 
 #[derive(Component)]
 pub struct Health {
-    pub hp: u32,
+    pub hp: i32,
 }
 
 impl Default for Health {

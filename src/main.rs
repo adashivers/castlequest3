@@ -116,6 +116,9 @@ pub fn setup_player(
             Transform::from_xyz(0.0, 5.0, 0.0),
             Visibility::default(),
             Collider::round_cylinder(0.7, 0.1, 0.0),
+            CollisionGroups::new(Group::GROUP_1, Group::GROUP_2),
+            ActiveEvents::COLLISION_EVENTS,
+            ActiveCollisionTypes::all(),
             Mesh3d(meshes.add(Cylinder::new(0.1, 1.4))),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: GRAY.into(),

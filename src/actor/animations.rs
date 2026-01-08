@@ -1,6 +1,6 @@
 use std::time::Duration;
 use bevy::{animation::{AnimationTarget, AnimationTargetId}, asset::uuid::Uuid, prelude::*, scene::SceneInstanceReady};
-use bevy_rapier3d::prelude::{ActiveEvents, Collider};
+use bevy_rapier3d::{prelude::{ActiveCollisionTypes, ActiveEvents, Collider, CollisionGroups, Group, Sensor}, rapier::prelude::ColliderBuilder};
 use crate::{debris::Debris, loading_system::AssetsLoading, utils::get_top_parent};
 
 use super::SKELETON_PATH;
@@ -55,6 +55,9 @@ pub fn load_animations(
 
 }
 
+#[derive(Component, Clone)]
+pub struct HurtBox(pub i32);
+
 // TODO: make it so this doesnt use iter_descendants, which is very costly. also move this to a new file called "attack"
 pub fn set_animation_events(
 	trigger: On<SceneInstanceReady>,
@@ -84,9 +87,12 @@ pub fn set_animation_events(
 						debug!("spawning hitbox");
 						// spawn skeleton hitbox during attack animation
 						let hitbox = commands.spawn((
+							HurtBox(10),
 							Transform::from_translation(Vec3::ZERO),
 							Name::new("Hitbox"),
-							Collider::cuboid(5.0, 10.0, 5.0),
+							Collider::cuboid(5.0, 15.0, 5.0),
+							CollisionGroups::new(Group::GROUP_2, Group::GROUP_1),
+							Sensor,
 							ActiveEvents::COLLISION_EVENTS,
 							Debris(Timer::from_seconds(0.2, TimerMode::Once)),
 						)).id();

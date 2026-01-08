@@ -3,15 +3,22 @@ use bevy::prelude::*;
 pub struct DebrisPlugin;
 impl Plugin for DebrisPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedUpdate, 
-            update_debris
-        );
+        app.add_systems(FixedUpdate, (
+            update_debris,
+            update_iframes,
+        ));
     }
 }
 
+
+// TODO: connect the following timer components with a parent trait
 #[derive(Component, Clone)]
 // any entity with this component will be removed after the timer is done.
 pub struct Debris(pub Timer);
+
+#[derive(Component, Clone)]
+// any entity with this component will be invincible to damage (i.e. if it has the entity Health, damage sources will not affect it), and the component will be removed after the timer is done.
+pub struct Invincible(pub Timer);
 
 pub fn update_debris(
     mut commands: Commands,
@@ -28,5 +35,18 @@ pub fn update_debris(
     }
     if deleted > 0 {
         debug!("deleted {} debris", deleted);
+    }
+}
+
+pub fn update_iframes(
+    mut commands: Commands,
+    inv_query: Query<(Entity, &mut Invincible)>,
+    time: Res<Time>,
+) {
+    for (entity, mut inv) in inv_query {
+        inv.0.tick(time.delta());
+        if inv.0.is_finished() {
+            commands.entity(entity).remove::<Invincible>();
+        }
     }
 }
