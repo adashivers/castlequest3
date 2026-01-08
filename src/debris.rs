@@ -3,8 +3,8 @@ use bevy::prelude::*;
 pub struct DebrisPlugin;
 impl Plugin for DebrisPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, 
-            remove_debris
+        app.add_systems(FixedUpdate, 
+            update_debris
         );
     }
 }
@@ -13,13 +13,20 @@ impl Plugin for DebrisPlugin {
 // any entity with this component will be removed after the timer is done.
 pub struct Debris(pub Timer);
 
-pub fn remove_debris(
+pub fn update_debris(
     mut commands: Commands,
-    debris_query: Query<(Entity, &Debris)>
+    debris_query: Query<(Entity, &mut Debris)>,
+    time: Res<Time>,
 ) {
-    for (entity, debris) in debris_query {
+    let mut deleted = 0;
+    for (entity, mut debris) in debris_query {
+        debris.0.tick(time.delta());
         if debris.0.is_finished() {
+            deleted += 1;
             commands.entity(entity).despawn();
         }
+    }
+    if deleted > 0 {
+        debug!("deleted {} debris", deleted);
     }
 }
