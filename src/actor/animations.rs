@@ -1,6 +1,7 @@
 use std::time::Duration;
-use bevy::{animation::AnimationTargetId, prelude::*};
-use crate::utils::get_top_parent;
+use bevy::{animation::AnimationTargetId, asset::uuid::Uuid, prelude::*};
+use bevy_rapier3d::prelude::{ActiveEvents, Collider};
+use crate::{debris::Debris, loading_system::AssetsLoading, utils::get_top_parent};
 
 use super::SKELETON_PATH;
 
@@ -16,18 +17,8 @@ pub struct SkeletonAnimTargets {
 }
 impl Default for SkeletonAnimTargets {
     fn default() -> Self {
-		let right_hand_names = [
-			Name::new("mixarmorig:Hips"),
-			Name::new("mixarmorig:Spine1"),
-			Name::new("mixarmorig:Spine2"),
-			Name::new("mixarmorig:Spine2"),
-			Name::new("mixarmorig:RightShoulder"),
-			Name::new("mixarmorig:RightArm"),
-			Name::new("mixarmorig:RightForeArm"),
-			Name::new("mixarmorig:RightHand"),
-			];
 		SkeletonAnimTargets {
-			right_hand: AnimationTargetId::from_names(right_hand_names.iter())
+			right_hand: AnimationTargetId(Uuid::parse_str("0e9581a4-7976-5144-b335-df12bed85f5d").unwrap())
 		}
 		
 	}
@@ -38,6 +29,7 @@ pub fn load_animations(
 	asset_server: Res<AssetServer>,
 	mut commands: Commands,
 	mut graphs: ResMut<Assets<AnimationGraph>>,
+	mut assets_loading: ResMut<AssetsLoading>,
 ) {
 	debug!("Loading all required animations...");
 	let clips = [
@@ -45,6 +37,11 @@ pub fn load_animations(
 		asset_server.load(GltfAssetLabel::Animation(1).from_asset(SKELETON_PATH)), // swing
 		asset_server.load(GltfAssetLabel::Animation(2).from_asset(SKELETON_PATH)), // walk
 	];
+
+	// add clip assets to loading list
+	for clip in clips.clone() {
+		assets_loading.0.push(clip.untyped());
+	}
 
 	let (graph, node_indices) = AnimationGraph::from_clips(clips);
 
@@ -56,6 +53,36 @@ pub fn load_animations(
 		graph_handle,
 	});
 
+}
+
+// TODO: fix this! doesn't work for some reason
+pub fn set_animation_events(
+	graphs: Res<Assets<AnimationGraph>>,
+	animations: Res<Animations>,
+	mut clips: ResMut<Assets<AnimationClip>>,
+	skel_anim_targets: Res<SkeletonAnimTargets>,
+) {
+	let graph = graphs.get(animations.graph_handle.id()).unwrap();
+	let attack_anim_node = graph.get(animations.animations[1]).unwrap();
+	let clip = match &attack_anim_node.node_type {
+		AnimationNodeType::Clip(clip_handle) => clips.get_mut(clip_handle.id()),
+		_ => unreachable!(),
+	}.unwrap();
+	debug!("setting animation events");
+	clip.add_event_fn_to_target(
+		skel_anim_targets.right_hand, 
+		0.7, 
+		|commands, entity, _, _| {
+			debug!("spawning hitbox");
+			// spawn skeleton hitbox during attack animation
+			let hitbox = commands.spawn((
+				Collider::cuboid(1.0, 1.0, 1.0),
+				ActiveEvents::COLLISION_EVENTS,
+			)).id();
+			commands.entity(entity).add_child(hitbox);
+		}
+	);
+	
 }
 
 

@@ -9,9 +9,9 @@ use crate::{player_movement::handle_input, ui::{BrosOskonFont}};
 use crate::actor::Player;
 
 // edit to change initial flags for debug
-pub const SHOW_COLLIDERS: bool = false;
+pub const SHOW_COLLIDERS: bool = true;
 pub const SHOW_NAVMESH: bool = false;
-pub const SHOW_BEHAVIORTREE_LOGS: bool = true;
+pub const SHOW_BEHAVIORTREE_LOGS: bool = false;
 
 /// Debug input vector. Debug systems should only run if this resource exists.
 #[derive(Resource)]
