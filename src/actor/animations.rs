@@ -1,5 +1,5 @@
 use std::time::Duration;
-use bevy::prelude::*;
+use bevy::{animation::AnimationTargetId, prelude::*};
 use crate::utils::get_top_parent;
 
 use super::SKELETON_PATH;
@@ -10,17 +10,43 @@ pub struct Animations { // taken from bevy example animations
 	pub graph_handle: Handle<AnimationGraph>,
 }
 
+#[derive(Resource, Clone)]
+pub struct SkeletonAnimTargets {
+	pub right_hand: AnimationTargetId
+}
+impl Default for SkeletonAnimTargets {
+    fn default() -> Self {
+		let right_hand_names = [
+			Name::new("mixarmorig:Hips"),
+			Name::new("mixarmorig:Spine1"),
+			Name::new("mixarmorig:Spine2"),
+			Name::new("mixarmorig:Spine2"),
+			Name::new("mixarmorig:RightShoulder"),
+			Name::new("mixarmorig:RightArm"),
+			Name::new("mixarmorig:RightForeArm"),
+			Name::new("mixarmorig:RightHand"),
+			];
+		SkeletonAnimTargets {
+			right_hand: AnimationTargetId::from_names(right_hand_names.iter())
+		}
+		
+	}
+}
+
+
 pub fn load_animations(
 	asset_server: Res<AssetServer>,
 	mut commands: Commands,
 	mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
 	debug!("Loading all required animations...");
-	let (graph, node_indices) = AnimationGraph::from_clips([
+	let clips = [
 		asset_server.load(GltfAssetLabel::Animation(0).from_asset(SKELETON_PATH)), // idle
 		asset_server.load(GltfAssetLabel::Animation(1).from_asset(SKELETON_PATH)), // swing
 		asset_server.load(GltfAssetLabel::Animation(2).from_asset(SKELETON_PATH)), // walk
-	]);
+	];
+
+	let (graph, node_indices) = AnimationGraph::from_clips(clips);
 
 	// Keep our animation graph in a Resource so that it can be inserted onto
 	// the correct entity once the scene actually loads.
