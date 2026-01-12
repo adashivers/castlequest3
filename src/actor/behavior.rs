@@ -5,31 +5,25 @@ use bevy::ecs::{entity::Entity};
 use bevy::prelude::*;
 use bevy_behave::prelude::*;
 use bevy_landmass::coords::ThreeD;
-use bevy_landmass::{AgentDesiredVelocity3d, AgentState, AgentTarget3d, Archipelago, Character, PointSampleDistance3d};
+use bevy_landmass::{AgentDesiredVelocity3d, AgentState, AgentTarget, AgentTarget3d, Archipelago, Character, PathStep, PointSampleDistance3d};
 use bevy_rapier3d::prelude::{KinematicCharacterController};
 use crate::actor::animations::*;
+use crate::actor::spawner::ReturnPoint;
 use crate::actor::{Player,};
 use crate::debug::{DebugFlags};
 
 use super::ActorType;
 
 #[derive(Component)]
-#[require(MoveAgentLastTick(false))]
 // Actors will move towards their targets only if this component is on them, and set to true.
 pub struct MoveAgent(pub bool);
-
-#[derive(Component, Default)]
-
-// component holding the state of a moveagent in the last tick.
-// added automatically with MoveAgent, starting at false.
-pub struct MoveAgentLastTick(pub bool);
 
 // This should run every time an actor is added to the scene
 pub fn init_actor_behavior(
     mut commands: Commands,
     player_query: Query<(Entity, &Children), With<Player>>,
     actor_type_query: Query<(Entity, &Children, &ActorType), Added<ActorType>>,
-    agent_query: Query<Entity, With<AgentState>>,
+    agent_query: Query<(Entity, &ReturnPoint), With<AgentState>>,
     character_query: Query<Entity, With<Character<ThreeD>>>,
     debug_flags_query: Option<Res<DebugFlags>>,
     graphs: Res<Assets<AnimationGraph>>,
@@ -50,6 +44,9 @@ pub fn init_actor_behavior(
         }
 
         let agent_entity = agent_entity.unwrap();
+        // this will only give Ok if the agent is an enemy.
+        let return_point = agent_query.get(agent_entity).and_then(|res| Ok(res.1.0));
+
         let graph = graphs.get(animations.graph_handle.id()).unwrap();
         let attack_anim_node = graph.get(animations.animations[1]).unwrap();
         let clip = match &attack_anim_node.node_type {
@@ -58,7 +55,7 @@ pub fn init_actor_behavior(
         }.unwrap();
 
         let (tree, agent_target) = match actor_type {
-            ActorType::Enemy { sight_radius, attack_radius } => {
+            ActorType::Enemy { sight_radius, attack_radius, home_radius } => {
                 debug!("setting up entity {}'s agent entity as an enemy", entity.index());
                 let (_, player_children) = player_query.single().unwrap();
                 // The navigation mesh Character entity is actually a parent of the top entity that makes up the player. We use this to get it:
@@ -84,26 +81,25 @@ pub fn init_actor_behavior(
                                     // enemy in sight logic
                                     Behave::Sequence => {
                                         Behave::trigger(CheckEntityInSight { entity_from: agent_entity, entity_to: player_char_entity, radius: *sight_radius }),
-                                        // if not already moving, start moving towards player
-                                        Behave::Invert => {
-                                            Behave::trigger(CheckMoving { agent_entity: agent_entity }), // TODO: implement
-                                        },
 
                                         // TODO: implement on_set_agent_target_entity. 
                                         // when this and SetAgentTargetPosition are done, we can remove the functionality of this method that adds a target entity.
                                         // i.e. delete agent_target
-                                        // Behave::trigger(SetAgentTargetEntity { agent_entity: agent_entity, char_entity: player_char_entity } ), 
+                                        Behave::trigger(SetAgentTarget { agent_entity: agent_entity, target: AgentTarget3d::Entity(player_char_entity) } ), 
                                         Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, do_move: true }),
                                     },
 
                                     // enemy not in sight but still targeted logic
                                     Behave::Sequence => {
-                                         Behave::trigger(CheckMoving { agent_entity: agent_entity }),
+                                        Behave::trigger(CheckMoving { agent_entity: agent_entity }),
+                                        Behave::trigger(CheckWalkingDistanceBelow { entity_from: agent_entity, entity_to: player_char_entity, threshold: *home_radius } )
                                     },
 
                                     // enemy not in sight logic
-                                    // Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, do_move: true }),
-                                    // Behave::trigger(SetAgentTargetPosition { agent_entity: agent_entity, target_pos: Vec3::ZERO }), // TODO: implement
+                                    Behave::Sequence => {
+                                        Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, do_move: true }),
+                                        Behave::trigger(SetAgentTarget { agent_entity: agent_entity, target: AgentTarget3d::Point(return_point.unwrap()) }), // TODO: implement
+                                    },
                                 },
                         }
                     }
@@ -133,9 +129,9 @@ pub fn update_agent_animations(
     actor_query: Query<&AnimationEntityLink, With<ActorType>>,
     mut animation_query: Query<(&mut AnimationPlayer, &mut AnimationTransitions)>,
 	animations: Res<Animations>,
-    agent_query: Query<(&ChildOf, &MoveAgent, &MoveAgentLastTick)>
+    agent_query: Query<(&ChildOf, &MoveAgent)>
 ) {
-    for (child_of, move_agent, move_agent_last_tick) in agent_query {
+    for (child_of, move_agent) in agent_query {
         let animation_link = actor_query.get(child_of.parent().entity());
         if animation_link.is_err() { continue };
         let animation_link = animation_link.unwrap();
@@ -145,30 +141,15 @@ pub fn update_agent_animations(
             mut animation_transitions
         ) = animation_query.get_mut(animation_link.0).unwrap();
 
-        if move_agent.0 != move_agent_last_tick.0 {
-            match move_agent.0 {
-                true => {
-                    animation_transitions
-                        .play(
-                            &mut animation_player, 
-                            animations.animations[2], 
-                            Duration::from_millis(250)
-                        )
-                        .repeat();
-                }
-                false => {
-                    // this is a case by case basis and should be set by the propagator.
-                }
-            }
+        if !animation_player.is_playing_animation(animations.animations[2]) && move_agent.0 {
+            animation_transitions
+                .play(
+                    &mut animation_player, 
+                    animations.animations[2], 
+                    Duration::from_millis(250)
+                )
+                .repeat();
         }
-    }
-}
-
-pub fn update_moveagent_laststate(mut agent_query: Query<(&MoveAgent, &mut MoveAgentLastTick)>) {
-    // updates last state of movable agent at the end of a tick. runs in Last
-    // this is used for setting up the animations
-    for (moveagent, mut moveagent_last) in agent_query.iter_mut() {
-        moveagent_last.0 = moveagent.0;
     }
 }
 
@@ -228,8 +209,8 @@ pub fn on_check_entity_in_sight(
     
     let sample_dist = PointSampleDistance3d { 
         horizontal_distance: 1.0,
-        distance_above: 1.0, 
-        distance_below: 1.0, 
+        distance_above: 5.0, 
+        distance_below: 5.0, 
         vertical_preference_ratio: 1.0, 
         animation_link_max_vertical_distance: 1.0 
     };
@@ -321,8 +302,86 @@ pub fn on_check_moving (
     }
 }
 
-#[derive(Clone)]
-pub struct SetAgentTargetEntity { agent_entity: Entity, char_entity: Entity } 
+pub struct SetAgentTarget { agent_entity: Entity, target: AgentTarget3d } 
+impl Clone for SetAgentTarget {
+    fn clone(&self) -> Self {
+        SetAgentTarget {
+            agent_entity: self.agent_entity.clone(),
+            target: match self.target {
+                AgentTarget3d::Entity(e) => AgentTarget3d::Entity(e),
+                AgentTarget3d::Point(p) => AgentTarget::Point(p),
+                AgentTarget3d::None => AgentTarget::None,
+            }
+        }
+    }
+}
+pub fn on_set_agent_target (
+    trigger: On<BehaveTrigger<SetAgentTarget>>,
+    mut commands: Commands,
+) {
+    let trigger_params = trigger.inner().clone();
+    commands
+        .get_entity(trigger_params.agent_entity)
+        .unwrap()
+        .insert(trigger_params.target);
 
+    
+    commands.trigger(trigger.ctx().success());
+}
 #[derive(Clone)]
-pub struct SetAgentTargetPosition { agent_entity: Entity, target_pos: Vec3 } 
+pub struct CheckWalkingDistanceBelow { entity_from: Entity, entity_to: Entity, threshold: f32 }
+pub fn on_check_walking_distance_below(
+	trigger: On<BehaveTrigger<CheckWalkingDistanceBelow>>, 
+	mut commands: Commands, 
+    archipelago: Query<&Archipelago<ThreeD>>,
+    global_transforms: Query<&GlobalTransform>,
+) {
+	let ctx = trigger.ctx();
+    let archipelago = archipelago.single().unwrap();
+
+    let trigger_params = trigger.inner();
+    let entity_from_pos = global_transforms.get(trigger_params.entity_from).unwrap().translation();
+    let entity_to_pos = global_transforms.get(trigger_params.entity_to).unwrap().translation();
+
+    let sample_dist = PointSampleDistance3d { 
+        horizontal_distance: 1.0,
+        distance_above: 1.0, 
+        distance_below: 1.0, 
+        vertical_preference_ratio: 1.0, 
+        animation_link_max_vertical_distance: 1.0 
+    };
+
+    let entity_from_pos_sampled = archipelago.sample_point(entity_from_pos, &sample_dist);
+    let entity_to_pos_sampled = archipelago.sample_point(entity_to_pos, &sample_dist);
+
+    match (entity_from_pos_sampled, entity_to_pos_sampled) {
+        (Ok(from), Ok(to)) => {
+            let path = archipelago.find_path(&from, &to, &HashMap::new(), bevy_landmass::PermittedAnimationLinks::All).unwrap();
+            let mut walking_distance = 0.0;
+            match path.first() {
+                Some(PathStep::Waypoint(first_point)) => {
+                    let mut last_point = first_point.clone();
+                    for path_step in path.iter().skip(1) {
+                        match path_step {
+                            bevy_landmass::PathStep::Waypoint(curr_point) => {
+                                walking_distance += last_point.distance(*curr_point);
+                                last_point = curr_point.clone();
+                            },
+                            _ => { unimplemented!(); }
+                        }
+                    }
+                    if walking_distance <= trigger_params.threshold {
+                        commands.trigger(ctx.success());
+                    } else {
+                        commands.trigger(ctx.failure());
+                    }
+                }
+                _ => { unimplemented!(); }
+            }
+        }
+        _ => {
+            // debug!("couldn't sample");
+            commands.trigger(ctx.failure());
+        }
+    };
+}

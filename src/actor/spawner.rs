@@ -34,6 +34,10 @@ pub struct ActorSpawner {
 	use_next_tick: bool, 
 }
 
+#[derive(Component)]
+// A component that spawns actors.
+pub struct ReturnPoint(pub Vec3);
+
 impl ActorSpawner {
 	pub fn new(positions: Vec<Vec3>, template: ActorSpawnerTemplate, use_next_tick: bool) -> ActorSpawner {
 		debug!("Spawning actor spawner...");
@@ -60,13 +64,15 @@ impl ActorSpawner {
 							collider: Collider::round_cylinder(self.template.half_height, self.template.radius, 0.0),
 							..default()
 						},
+						
 					))
 
 					.with_children(|parent| {
+						let offset = Vec3::new(0.0, -(self.template.half_height + self.template.radius), 0.0);
 						parent
 							// child entity containing navigation components
 							.spawn((
-								Transform::from_xyz(0.0, -(self.template.half_height + self.template.radius), 0.0),
+								Transform::from_translation(offset),
 								Agent3dBundle {
 									agent: default(),
 									settings: AgentSettings { 
@@ -77,6 +83,7 @@ impl ActorSpawner {
 									archipelago_ref: ArchipelagoRef3d::new(*archipelago_ref),
 								},
 								MoveAgent(false),
+								ReturnPoint(pos + offset),
 								self.template.target_reached_condition,
 							));
 						
@@ -120,7 +127,7 @@ pub fn load_actor_spawners(mut commands: Commands) {
 		vec![Vec3::new(-35.0, 3.7, -10.0), Vec3::new(-22.0, 2.4, 0.0)],
 		ActorSpawnerTemplate {
 			actor_name: "Skeleton".into(),
-			actor_type: ActorType::Enemy { sight_radius: 100.0, attack_radius: 1.3 },
+			actor_type: ActorType::Enemy { sight_radius: 100.0, attack_radius: 1.3, home_radius: 15.0 },
 			half_height: 1.0,
 			radius: 0.3,
 			visibility: true,
