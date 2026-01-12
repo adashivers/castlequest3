@@ -15,8 +15,12 @@ use crate::debug::{DebugFlags};
 use super::ActorType;
 
 #[derive(Component)]
-// Actors will move towards their targets only if this component is on them, and set to true.
-pub struct MoveAgent(pub bool);
+// Represents what the agent of an actor should be doing when called.
+pub enum MoveAgent {
+    Moving,
+    Idle,
+    Turning
+}
 
 // This should run every time an actor is added to the scene
 pub fn init_actor_behavior(
@@ -66,7 +70,7 @@ pub fn init_actor_behavior(
                                 // attack action
                                 Behave::Sequence => {
                                     Behave::trigger(CheckEntityInSight { entity_from: agent_entity, entity_to: player_char_entity, radius: *attack_radius}),
-                                    Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, do_move: false }),
+                                    Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, new_move_agent: MoveAgent::Turning }),
                                     Behave::While => {
                                         Behave::trigger(CheckEntityInSight { entity_from: agent_entity, entity_to: player_char_entity, radius: *attack_radius}),
                                         Behave::spawn_named("Attack", (
@@ -81,12 +85,8 @@ pub fn init_actor_behavior(
                                     // enemy in sight logic
                                     Behave::Sequence => {
                                         Behave::trigger(CheckEntityInSight { entity_from: agent_entity, entity_to: player_char_entity, radius: *sight_radius }),
-
-                                        // TODO: implement on_set_agent_target_entity. 
-                                        // when this and SetAgentTargetPosition are done, we can remove the functionality of this method that adds a target entity.
-                                        // i.e. delete agent_target
                                         Behave::trigger(SetAgentTarget { agent_entity: agent_entity, target: AgentTarget3d::Entity(player_char_entity) } ), 
-                                        Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, do_move: true }),
+                                        Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, new_move_agent: MoveAgent::Moving }),
                                     },
 
                                     // enemy not in sight but still targeted logic
@@ -97,7 +97,7 @@ pub fn init_actor_behavior(
 
                                     // enemy not in sight logic
                                     Behave::Sequence => {
-                                        Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, do_move: true }),
+                                        Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, new_move_agent: MoveAgent::Moving }),
                                         Behave::trigger(SetAgentTarget { agent_entity: agent_entity, target: AgentTarget3d::Point(return_point.unwrap()) }), // TODO: implement
                                     },
                                 },
@@ -141,41 +141,52 @@ pub fn update_agent_animations(
             mut animation_transitions
         ) = animation_query.get_mut(animation_link.0).unwrap();
 
-        if !animation_player.is_playing_animation(animations.animations[2]) && move_agent.0 {
-            animation_transitions
-                .play(
-                    &mut animation_player, 
-                    animations.animations[2], 
-                    Duration::from_millis(250)
-                )
-                .repeat();
+        match move_agent {
+            MoveAgent::Moving => {
+                if !animation_player.is_playing_animation(animations.animations[2]) {
+                    animation_transitions
+                        .play(
+                            &mut animation_player, 
+                            animations.animations[2], 
+                            Duration::from_millis(250)
+                        )
+                        .repeat();
+                }
+            },
+            MoveAgent::Turning => {},
+            _ => { unimplemented!(); }
         }
+
+        
     }
 }
 
-pub fn move_agents(
+fn turn(mut transform: Mut<'_, Transform>, desired_velocity: &AgentDesiredVelocity3d) {
+    // align transform rotation so that agent looks where it's going
+    let mut desired_look_dir = desired_velocity.velocity().normalize();
+    desired_look_dir.y = 0.0;
+    // debug!("turning");
+    let angle = -desired_look_dir.z.signum() * Vec3::X.angle_between(desired_look_dir);
+    let desired_rotation = Quat::from_axis_angle(Vec3::Y, angle);
+
+    transform.rotation = transform.rotation.rotate_towards(desired_rotation, 0.03);
+}
+
+pub fn update_agents(
     agent_query: Query<(&ChildOf, &AgentDesiredVelocity3d, &MoveAgent)>, 
     mut actor_query: Query<(&mut Transform, &mut KinematicCharacterController)>,
     time: Res<Time>,
 ) {
     for (child_of, desired_velocity, moveagent) in agent_query {
+        let (
+            transform, 
+            mut controller
+        ) = actor_query.get_mut(child_of.parent().entity()).unwrap();
         match moveagent {
             // only move if moveagent true
-            &MoveAgent(true) => {
-                let (
-                    mut transform, 
-                    mut controller
-                ) = actor_query.get_mut(child_of.parent().entity()).unwrap();
-
+            &MoveAgent::Moving => {
                 if desired_velocity.velocity().length() > 0.05 {
-                    // align transform rotation so that agent looks where it's going
-                    let mut desired_look_dir = desired_velocity.velocity().normalize();
-                    desired_look_dir.y = 0.0;
-                    // debug!("turning");
-                    let angle = -desired_look_dir.z.signum() * Vec3::X.angle_between(desired_look_dir);
-                    let desired_rotation = Quat::from_axis_angle(Vec3::Y, angle);
-
-                    transform.rotation = transform.rotation.rotate_towards(desired_rotation, 0.1);
+                    turn(transform, desired_velocity);
                 }
                 
                 // set next velocity
@@ -183,11 +194,17 @@ pub fn move_agents(
                 next_velocity += desired_velocity.velocity(); // add desired velocity
                 controller.translation = Some(next_velocity * time.delta_secs());
             },
+
+            &MoveAgent::Turning => {
+                turn(transform, desired_velocity);
+            },
+
             _ => {}
         }
         
     }
 }
+
 
 #[derive(Clone)]
 // TODO: add vision radius
@@ -236,23 +253,33 @@ pub fn on_check_entity_in_sight(
     };
 }
 
-#[derive(Clone)]
 // this should always return success
-pub struct SetMoveTowardsTarget { pub agent_entity: Entity, pub do_move: bool }
-
+pub struct SetMoveTowardsTarget { pub agent_entity: Entity, pub new_move_agent: MoveAgent }
+impl Clone for SetMoveTowardsTarget {
+    fn clone(&self) -> Self {
+        SetMoveTowardsTarget {
+            agent_entity: self.agent_entity.clone(),
+            new_move_agent: match self.new_move_agent {
+                MoveAgent::Idle => MoveAgent::Idle,
+                MoveAgent::Moving => MoveAgent::Moving,
+                MoveAgent::Turning => MoveAgent::Turning,
+            }
+        }
+    }
+}
 pub fn on_set_move_towards_target(
 	trigger: On<BehaveTrigger<SetMoveTowardsTarget>>,
     mut agent_query: Query<&mut MoveAgent, With<AgentState>>,
     mut commands: Commands,
 ) {
 	let ctx = trigger.ctx();
-	let event = trigger.event().inner();
+	let event = trigger.event().inner().clone();
 
     let agent_query_result =  agent_query.get_mut(event.agent_entity);
     match agent_query_result {
         Ok(mut move_agent) => {
             // set moving to true for this agent
-            move_agent.0 = event.do_move;
+            *move_agent = event.new_move_agent;
             commands.trigger(ctx.success());
         },
         Err(e) => panic!("{e:?}"),
@@ -296,8 +323,8 @@ pub fn on_check_moving (
     agent_query: Query<&MoveAgent>, 
 ) {
     let ctx = trigger.ctx();
-    match agent_query.get(trigger.inner().agent_entity).unwrap().0 {
-        true => { commands.trigger(ctx.success()); },
+    match agent_query.get(trigger.inner().agent_entity).unwrap() {
+        MoveAgent::Moving => { commands.trigger(ctx.success()); },
         _ => {  commands.trigger(ctx.failure()); }
     }
 }

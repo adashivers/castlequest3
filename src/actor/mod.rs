@@ -49,7 +49,7 @@ impl Plugin for EnemySpawnPlugin {
 				.chain()
 				.after(crate::ui::update_ui),
 				use_actor_spawners,
-				move_agents,
+				update_agents,
 				update_agent_animations,
 				on_attack,
 				use_attack_collisions,

@@ -82,7 +82,7 @@ impl ActorSpawner {
 									},
 									archipelago_ref: ArchipelagoRef3d::new(*archipelago_ref),
 								},
-								MoveAgent(false),
+								MoveAgent::Idle,
 								ReturnPoint(pos + offset),
 								self.template.target_reached_condition,
 							));
