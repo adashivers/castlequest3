@@ -32,6 +32,9 @@ pub fn init_actor_behavior(
     agent_query: Query<Entity, With<AgentState>>,
     character_query: Query<Entity, With<Character<ThreeD>>>,
     debug_flags_query: Option<Res<DebugFlags>>,
+    graphs: Res<Assets<AnimationGraph>>,
+	animations: Res<Animations>,
+	clips: ResMut<Assets<AnimationClip>>,
 ) {
     let btree_logging = match debug_flags_query {
         Some(flags) => { flags.actor_behavior_tree_logs },
@@ -47,6 +50,12 @@ pub fn init_actor_behavior(
         }
 
         let agent_entity = agent_entity.unwrap();
+        let graph = graphs.get(animations.graph_handle.id()).unwrap();
+        let attack_anim_node = graph.get(animations.animations[1]).unwrap();
+        let clip = match &attack_anim_node.node_type {
+            AnimationNodeType::Clip(clip_handle) => clips.get(clip_handle.id()),
+            _ => unreachable!(),
+        }.unwrap();
 
         let (tree, agent_target) = match actor_type {
             ActorType::Enemy { sight_radius, attack_radius } => {
@@ -65,7 +74,7 @@ pub fn init_actor_behavior(
                                         Behave::trigger(CheckEntityInSight { entity_from: agent_entity, entity_to: player_char_entity, radius: *attack_radius}),
                                         Behave::spawn_named("Attack", (
                                             Attack { attacking_agent_entity: entity },
-                                            BehaveTimeout::from_secs(2.1, true),
+                                            BehaveTimeout::new(Duration::from_secs_f32(clip.duration()), true),
                                         )),
                                     }
                                     
