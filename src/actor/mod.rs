@@ -31,7 +31,10 @@ impl Plugin for EnemySpawnPlugin {
 		.init_resource::<SkeletonAnimTargets>()
 		.add_observer(on_check_entity_in_sight)
 		.add_observer(on_set_move_towards_target)
+		.add_observer(on_check_moving)
 		.add_observer(set_animation_events)
+		.add_observer(on_set_agent_target)
+		.add_observer(on_check_walking_distance_below)
 		.add_systems(Startup, load_animations)
 		.add_systems(OnExit(super::MyAppState::Loading), (
 			
@@ -46,16 +49,13 @@ impl Plugin for EnemySpawnPlugin {
 				.chain()
 				.after(crate::ui::update_ui),
 				use_actor_spawners,
-				move_agents,
+				update_agents,
 				update_agent_animations,
 				on_attack,
 				use_attack_collisions,
 				
 			).in_set(super::GameplaySet)
-		)
-		.add_systems(Last, (
-			update_moveagent_laststate,
-		));
+		);
 		
     }
 }
@@ -81,7 +81,7 @@ pub struct Player;
 // Enemies take in a radius parameter which defines their line of sight.
 // TODO: Use this enum (and this system in general) for setting up the player.
 pub enum ActorType {
-	Enemy{sight_radius: f32, attack_radius: f32},
+	Enemy{sight_radius: f32, attack_radius: f32, home_radius: f32},
 	Player,
 	#[default]
 	Neutral
@@ -101,7 +101,7 @@ pub struct ActorBundle {
 impl Default for ActorBundle {
 	fn default() -> Self {
 		Self { 
-			actor_type: ActorType::Enemy { sight_radius: 100.0, attack_radius: 1.0 },
+			actor_type: ActorType::Enemy { sight_radius: 100.0, attack_radius: 1.0, home_radius: 15.0 },
 			health: Health { hp: 100 }, 
 			transform: Transform::default(), 
 			visibility: Visibility::Visible,
