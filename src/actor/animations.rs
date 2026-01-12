@@ -1,6 +1,6 @@
 use std::time::Duration;
 use bevy::{animation::{AnimationTarget, AnimationTargetId}, asset::uuid::Uuid, prelude::*, scene::SceneInstanceReady};
-use bevy_rapier3d::{prelude::{ActiveCollisionTypes, ActiveEvents, Collider, CollisionGroups, Group, Sensor}, rapier::prelude::ColliderBuilder};
+use bevy_rapier3d::prelude::*;
 use crate::{debris::Debris, loading_system::AssetsLoading, utils::get_top_parent};
 
 use super::SKELETON_PATH;

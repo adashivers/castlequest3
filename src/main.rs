@@ -60,6 +60,7 @@ fn main() {
         .insert_state(MyAppState::Loading)
         // internal plugins
         .add_plugins((
+            CQ3DebugPlugin,
             LoadingSystemPlugin,
             PlayerMovementPlugin,
             EnemySpawnPlugin,
@@ -219,10 +220,11 @@ pub fn spawn_level_map(
 fn grab_mouse(
     mut cursor_options_q: Query<&mut CursorOptions>,
     key: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
 ) {
     let mut cursor_options = cursor_options_q.single_mut().unwrap();
 
-    if key.just_pressed(KeyCode::Space) {
+    if mouse.just_pressed(MouseButton::Left) {
         cursor_options.visible = false;
         cursor_options.grab_mode = CursorGrabMode::Locked;
     }
