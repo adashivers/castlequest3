@@ -9,7 +9,7 @@ use navigation::*;
 use behavior::*;
 use attack::*;
 
-const SKELETON_PATH: &str = "models/skeleton.glb";
+const SKELETON_PATH: &str = "models\\skeleton.glb";
 pub mod animations;
 pub mod spawner;
 pub mod navigation;

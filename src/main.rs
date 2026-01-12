@@ -60,7 +60,6 @@ fn main() {
         .insert_state(MyAppState::Loading)
         // internal plugins
         .add_plugins((
-            CQ3DebugPlugin,
             LoadingSystemPlugin,
             PlayerMovementPlugin,
             EnemySpawnPlugin,
