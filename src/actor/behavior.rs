@@ -261,7 +261,7 @@ pub struct SetMoveTowardsTarget { pub agent_entity: Entity, pub do_move: bool }
 
 pub fn on_set_move_towards_target(
 	trigger: On<BehaveTrigger<SetMoveTowardsTarget>>,
-    mut agent_query: Query<(&mut MoveAgent, &mut AgentTarget3d), With<AgentState>>,
+    mut agent_query: Query<&mut MoveAgent, With<AgentState>>,
     mut commands: Commands,
 ) {
 	let ctx = trigger.ctx();
@@ -269,7 +269,7 @@ pub fn on_set_move_towards_target(
 
     let agent_query_result =  agent_query.get_mut(event.agent_entity);
     match agent_query_result {
-        Ok((mut move_agent, target)) => {
+        Ok(mut move_agent) => {
             // set moving to true for this agent
             move_agent.0 = event.do_move;
             commands.trigger(ctx.success());
