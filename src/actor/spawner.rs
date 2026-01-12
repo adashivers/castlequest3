@@ -127,7 +127,7 @@ pub fn load_actor_spawners(mut commands: Commands) {
 		vec![Vec3::new(-35.0, 3.7, -10.0), Vec3::new(-22.0, 2.4, 0.0)],
 		ActorSpawnerTemplate {
 			actor_name: "Skeleton".into(),
-			actor_type: ActorType::Enemy { sight_radius: 100.0, attack_radius: 1.3, home_radius: 15.0 },
+			actor_type: ActorType::Enemy { sight_radius: 30.0, attack_radius: 1.3, home_radius: 15.0 },
 			half_height: 1.0,
 			radius: 0.3,
 			visibility: true,

@@ -85,6 +85,7 @@ pub fn init_actor_behavior(
                                     // enemy in sight logic
                                     Behave::Sequence => {
                                         Behave::trigger(CheckEntityInSight { entity_from: agent_entity, entity_to: player_char_entity, radius: *sight_radius }),
+                                        Behave::trigger(CheckWalkingDistanceBelow { agent_entity: agent_entity, threshold: *sight_radius } ),
                                         Behave::trigger(SetAgentTarget { agent_entity: agent_entity, target: AgentTarget3d::Entity(player_char_entity) } ), 
                                         Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, new_move_agent: MoveAgent::Moving }),
                                     },
@@ -92,11 +93,16 @@ pub fn init_actor_behavior(
                                     // enemy not in sight but still targeted logic
                                     Behave::Sequence => {
                                         Behave::trigger(CheckMoving { agent_entity: agent_entity }),
-                                        Behave::trigger(CheckWalkingDistanceBelow { entity_from: agent_entity, entity_to: player_char_entity, threshold: *home_radius } )
+                                        Behave::trigger(CheckWalkingDistanceBelow { agent_entity: agent_entity, threshold: *home_radius }),
+                                        Behave::trigger(CheckWalkingDistanceBelow { agent_entity: agent_entity, threshold: *attack_radius }),
+                                        Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, new_move_agent: MoveAgent::Idle }),
                                     },
 
                                     // enemy not in sight logic
                                     Behave::Sequence => {
+                                        Behave::Invert => {
+                                            Behave::trigger(CheckWalkingDistanceBelow { agent_entity: agent_entity, threshold: *attack_radius }),
+                                        },
                                         Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, new_move_agent: MoveAgent::Moving }),
                                         Behave::trigger(SetAgentTarget { agent_entity: agent_entity, target: AgentTarget3d::Point(return_point.unwrap()) }), // TODO: implement
                                     },
@@ -154,6 +160,17 @@ pub fn update_agent_animations(
                 }
             },
             MoveAgent::Turning => {},
+            MoveAgent::Idle => {
+                if !animation_player.is_playing_animation(animations.animations[0]) {
+                    animation_transitions
+                        .play(
+                            &mut animation_player, 
+                            animations.animations[0], 
+                            Duration::from_millis(250)
+                        )
+                        .repeat();
+                }
+            }
             _ => { unimplemented!(); }
         }
 
@@ -356,10 +373,11 @@ pub fn on_set_agent_target (
     commands.trigger(trigger.ctx().success());
 }
 #[derive(Clone)]
-pub struct CheckWalkingDistanceBelow { entity_from: Entity, entity_to: Entity, threshold: f32 }
+pub struct CheckWalkingDistanceBelow { agent_entity: Entity, threshold: f32 }
 pub fn on_check_walking_distance_below(
 	trigger: On<BehaveTrigger<CheckWalkingDistanceBelow>>, 
 	mut commands: Commands, 
+    agent_target_query: Query<&AgentTarget3d>,
     archipelago: Query<&Archipelago<ThreeD>>,
     global_transforms: Query<&GlobalTransform>,
 ) {
@@ -367,8 +385,13 @@ pub fn on_check_walking_distance_below(
     let archipelago = archipelago.single().unwrap();
 
     let trigger_params = trigger.inner();
-    let entity_from_pos = global_transforms.get(trigger_params.entity_from).unwrap().translation();
-    let entity_to_pos = global_transforms.get(trigger_params.entity_to).unwrap().translation();
+    let agent_target = agent_target_query.get(trigger_params.agent_entity).unwrap();
+    let entity_from_pos = global_transforms.get(trigger_params.agent_entity).unwrap().translation();
+    let entity_to_pos = match agent_target {
+        AgentTarget3d::Entity(e) => global_transforms.get(*e).unwrap().translation(),
+        AgentTarget3d::Point(p) => *p,
+        AgentTarget3d::None => unreachable!(),
+    };
 
     let sample_dist = PointSampleDistance3d { 
         horizontal_distance: 1.0,
