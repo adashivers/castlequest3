@@ -76,9 +76,9 @@ pub fn init_actor_behavior(
                                     Behave::Sequence => {
                                         Behave::trigger(CheckEntityInSight { entity_from: agent_entity, entity_to: player_char_entity, radius: *sight_radius }),
                                         // if not already moving, start moving towards player
-                                        // Behave::Invert => {
-                                        //     Behave::trigger(CheckMoving { agent_entity: agent_entity }), // TODO: implement
-                                        // },
+                                        Behave::Invert => {
+                                            Behave::trigger(CheckMoving { agent_entity: agent_entity }), // TODO: implement
+                                        },
 
                                         // TODO: implement on_set_agent_target_entity. 
                                         // when this and SetAgentTargetPosition are done, we can remove the functionality of this method that adds a target entity.
@@ -88,9 +88,9 @@ pub fn init_actor_behavior(
                                     },
 
                                     // enemy not in sight but still targeted logic
-                                    // Behave::Sequence => {
-                                    //     Behave::trigger(CheckMoving { agent_entity: agent_entity }),
-                                    // },
+                                    Behave::Sequence => {
+                                         Behave::trigger(CheckMoving { agent_entity: agent_entity }),
+                                    },
 
                                     // enemy not in sight logic
                                     // Behave::trigger(SetMoveTowardsTarget { agent_entity: agent_entity, do_move: true }),
@@ -300,6 +300,17 @@ pub fn on_attack(
 
 #[derive(Clone)]
 pub struct CheckMoving { pub agent_entity: Entity }
+pub fn on_check_moving (
+    trigger: On<BehaveTrigger<CheckMoving>>,
+    mut commands: Commands,
+    agent_query: Query<&MoveAgent>, 
+) {
+    let ctx = trigger.ctx();
+    match agent_query.get(trigger.inner().agent_entity).unwrap().0 {
+        true => { commands.trigger(ctx.success()); },
+        _ => {  commands.trigger(ctx.failure()); }
+    }
+}
 
 #[derive(Clone)]
 pub struct SetAgentTargetEntity { agent_entity: Entity, char_entity: Entity } 
