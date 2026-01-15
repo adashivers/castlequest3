@@ -124,7 +124,7 @@ pub fn use_actor_spawners(
 // Load a spawner that spawns a skeleton in the northern hallway. This is mainly for testing the game right now.
 pub fn load_actor_spawners(mut commands: Commands) {
 	commands.spawn(ActorSpawner::new(
-		vec![Vec3::new(-35.0, 3.7, -10.0), Vec3::new(-22.0, 2.4, 0.0)],
+		vec![Vec3::new(-13.0, 2.4, 0.0), Vec3::new(-22.7, 2.4, 6.12)],
 		ActorSpawnerTemplate {
 			actor_name: "Skeleton".into(),
 			actor_type: ActorType::Enemy { sight_radius: 30.0, attack_radius: 1.3, home_radius: 15.0 },

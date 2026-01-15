@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use bevy::{
     prelude::*,
     color::palettes::css::*,
@@ -5,7 +7,7 @@ use bevy::{
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use bevy_landmass::{AgentState, debug::{EnableLandmassDebug, Landmass3dDebugPlugin}};
 use bevy_rapier3d::render::{DebugRenderContext, RapierDebugRenderPlugin};
-use crate::{player_movement::handle_input, ui::{BrosOskonFont}};
+use crate::{actor::{ActorType, spawner::ReturnPoint}, player_movement::handle_input, ui::BrosOskonFont};
 use crate::actor::Player;
 
 // edit to change initial flags for debug
@@ -62,8 +64,10 @@ impl Plugin for CQ3DebugPlugin {
         )
         .add_systems(Update,
             (
+                
                 (update_gizmo_configs,).chain().before(crate::player_movement::player_look),
-                update_debug_ui.run_if(resource_exists::<DebugFlags>).after(crate::ui::update_ui)
+                (draw_agent_state_gizmos, update_debug_ui.after(crate::ui::update_ui)).run_if(resource_exists::<DebugFlags>),
+
             ).in_set(super::GameplaySet)
         );
     }
@@ -75,25 +79,46 @@ pub struct CQ3DebugGizmos; // Gizmos showing agent state
 
 pub fn draw_agent_state_gizmos(
     mut agent_gizmos: Gizmos<CQ3DebugGizmos>,
-    agent_query: Query<(&AgentState, &GlobalTransform)>,
+    agent_query: Query<(&ChildOf, &AgentState, &ReturnPoint, &GlobalTransform)>,
+    actor_type_query: Query<&ActorType>,
+    debug_flags: Option<Res<DebugFlags>>
 ) {
-    agent_query
-    .iter()
-    .for_each(|(agent_state, transform)| {
-        let isometry = transform.to_isometry();
-        let color = match agent_state {
-            AgentState::Idle => GRAY,
-            AgentState::AgentNotOnNavMesh => RED,
-            AgentState::TargetNotOnNavMesh => MAROON,
-            AgentState::Moving => GREEN,
-            AgentState::ReachedTarget => LIME,
-            AgentState::NoPath => BLACK,
-            AgentState::Paused => SILVER,
-            AgentState::ReachedAnimationLink => TEAL,
-            AgentState::UsingAnimationLink => BLUE,
-        };
-        agent_gizmos.sphere(isometry, 0.2f32, color);
-    });
+    match debug_flags.and_then(|f| Some(f.show_navmesh)) {
+        Some(true) => {
+            agent_query
+            .iter()
+            .for_each(|(ChildOf(parent_entity), agent_state, return_point, transform)| {
+                let actor_type = actor_type_query.get(*parent_entity).unwrap();
+
+                let isometry = transform.to_isometry();
+                let color = match agent_state {
+                    AgentState::Idle => GRAY,
+                    AgentState::AgentNotOnNavMesh => RED,
+                    AgentState::TargetNotOnNavMesh => MAROON,
+                    AgentState::Moving => GREEN,
+                    AgentState::ReachedTarget => LIME,
+                    AgentState::NoPath => BLACK,
+                    AgentState::Paused => SILVER,
+                    AgentState::ReachedAnimationLink => TEAL,
+                    AgentState::UsingAnimationLink => BLUE,
+                };
+                agent_gizmos.sphere(isometry, 0.2f32, color);
+                match actor_type {
+                    ActorType::Enemy { sight_radius, attack_radius, home_radius } => {
+                        // green line from spawn point to agent entity
+                        agent_gizmos.line(transform.translation(), return_point.0, GREEN);
+                        // arcs showing where radii end
+                        agent_gizmos.arc_3d(2.0 * PI, *home_radius, Isometry3d::from_translation(return_point.0), Srgba::new(0.0, 1.0, 0.0, 0.5));
+                        agent_gizmos.arc_3d(2.0 * PI, *attack_radius, isometry, Srgba::new(1.0, 0.0, 0.0, 0.5));
+                        agent_gizmos.arc_3d(2.0 * PI, *sight_radius, isometry, Srgba::new(0.0, 0.0, 1.0, 0.5));
+                    },
+                    _ => debug!("not an enemy"),
+                }
+            });
+        },
+        _ => {},
+        
+    }
 }
 
 pub fn update_gizmo_configs(
