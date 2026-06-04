@@ -11,8 +11,9 @@ pub const GROUND_TIMER: f32 = 0.5;
 pub const MOVEMENT_SPEED: f32 = 2.0;
 pub const JUMP_SPEED: f32 = 0.0; // TODO: remove jumping for real
 
-pub fn highest_point() -> f32 { JUMP_SPEED * JUMP_SPEED / (-2.0 * GRAVITY) } // the max height this player can gain with a jump
+pub const fn highest_point() -> f32 { JUMP_SPEED * JUMP_SPEED / (-2.0 * GRAVITY) } // the max height this player can gain with a jump
 
+// This system is responsible for managing inputs for player movement and moving the player.
 pub struct PlayerMovementPlugin;
 impl Plugin for PlayerMovementPlugin {
     fn build(&self, app: &mut App) {
@@ -40,6 +41,7 @@ pub struct MovementInput(Vec3);
 #[derive(Default, Resource, Deref, DerefMut)]
 pub struct LookInput(Vec2);
 
+// prepare input data for movement
 pub fn handle_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut movement: ResMut<MovementInput>,
@@ -73,6 +75,7 @@ pub fn handle_input(
     }
 }
 
+// move player in accordance to the collected input. must run after handle_input
 pub fn player_movement(
     time: Res<Time>,
     mut input: ResMut<MovementInput>,

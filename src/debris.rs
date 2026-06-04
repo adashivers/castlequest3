@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+// This plugin is responsible for managing debris (i.e. entities that automatically unload after )
 pub struct DebrisPlugin;
 impl Plugin for DebrisPlugin {
     fn build(&self, app: &mut App) {
@@ -12,8 +13,6 @@ impl Plugin for DebrisPlugin {
 
 // YAY!!!!!!! DEBRIS!!!!!!!!!!!!!!!!!!!!!!!!
 
-
-// TODO: connect the following timer components with a parent trait
 #[derive(Component, Clone)]
 // any entity with this component will be removed after the timer is done.
 pub struct Debris(pub Timer);
@@ -40,6 +39,7 @@ pub fn update_debris(
     }
 }
 
+// tick down invincibility frames
 pub fn update_iframes(
     mut commands: Commands,
     inv_query: Query<(Entity, &mut Invincible)>,

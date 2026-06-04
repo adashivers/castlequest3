@@ -41,11 +41,15 @@ pub struct GameplaySet;
 
 fn main() {
     App::new()
-        .insert_resource(ClearColor(Color::srgb(
-            0xF9 as f32 / 255.0,
-            0xF9 as f32 / 255.0,
-            0xFF as f32 / 255.0,
-        )))
+        .insert_resource(
+            ClearColor( // internal resource to determine the color to clear the viewport to at start
+                Color::srgb(
+                    0xF9 as f32 / 255.0,
+                    0xF9 as f32 / 255.0,
+                    0xFF as f32 / 255.0,
+                )
+            )
+        )
         // external plugins
         .add_plugins((
             DefaultPlugins.set(LogPlugin {
@@ -55,11 +59,10 @@ fn main() {
                 ..Default::default()
             }),
             RapierPhysicsPlugin::<NoUserData>::default(),
-            RemotePlugin::default(), RemoteHttpPlugin::default(),
+            RemotePlugin::default(), RemoteHttpPlugin::default(), // these are for navmesh creating purposes
         ))
         .insert_state(MyAppState::Loading)
-        // internal plugins
-        .add_plugins((
+        .add_plugins(( // dev-made plugins
             CQ3DebugPlugin,
             LoadingSystemPlugin,
             PlayerMovementPlugin,
@@ -105,14 +108,16 @@ pub fn setup_player(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>
 ) {
-    const FOV: f32 = f32::to_radians(60.0);
+    const FOV: f32 = f32::to_radians(60.0); // cam fov
+
+    // create new reference to navmesh archipelago
     let archipelago_ref = ArchipelagoRef3d::new(island_archipelago_ref.single().expect("Cound not find archipelago reference on island").entity);
 
     commands
         .spawn((
             Name::new("Player"),
-            Player::default(),
-            Health { hp: 90 },
+            Player::default(), // see src\actor\mod.rs
+            Health { hp: 100 },
             Transform::from_xyz(0.0, 5.0, 0.0),
             Visibility::default(),
             Collider::round_cylinder(0.7, 0.1, 0.0),
@@ -144,8 +149,8 @@ pub fn setup_player(
             },
         ))
         .with_children(|b| {
-            // FPS Camera
-            b.spawn((
+            
+            b.spawn(( // first-person camera bundle
                 Camera3d::default(), 
                 Transform::from_xyz(0.0, 0.2, -0.1), 
                 Projection::Perspective(
@@ -156,8 +161,8 @@ pub fn setup_player(
                     }
                 )
             ));
-            b.spawn((
-                Transform::from_xyz(0.0, -0.8, 0.0),
+            b.spawn(( // navmesh character bundle
+                Transform::from_xyz(0.0, -0.8, 0.0), // centered a little further down than the floor, it helps navmesh
                 Character3dBundle {
                     character: default(),
                     settings: CharacterSettings {
@@ -169,7 +174,6 @@ pub fn setup_player(
         });
 }
 
-// todo: change this to get in a scene map
 pub fn spawn_level_map(
     mut commands: Commands,
     meshes: Res<Assets<Mesh>>,
@@ -177,6 +181,7 @@ pub fn spawn_level_map(
     scenes: Res<GameScenes>,
     navmesh_generators: Res<NavmeshGenerators>,
 ) {
+    // use all navmesh generating meshes
     navmesh_generators.0
         .iter()
         .for_each(|gen_mesh_handle| {
@@ -206,6 +211,7 @@ pub fn spawn_level_map(
 
         });
     
+    // spawn all scenes
     scenes.0
         .iter()
         .for_each(|scene| {

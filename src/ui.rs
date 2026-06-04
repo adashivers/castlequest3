@@ -41,7 +41,6 @@ pub fn setup_ui(
     };
 
     // load font
-    
     let bros_oskon_90s_extltita =
         asset_server.load("fonts/zt_bros_oskon_90s/ZTBrosOskon90s-ExtLtIta.otf");
 
